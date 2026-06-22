@@ -1,6 +1,7 @@
 """Candidate set output models — Design §4.4, §6.2."""
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -36,12 +37,10 @@ class DetectedPattern:
 
 @dataclass(frozen=True)
 class CandidateTransaction:
-    transaction_id: str
     date: str
     description: str
     amount: float
-    direction: str
-    role_in_set: str = "main_salary"
+    transaction_id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
 
 @dataclass(frozen=True)
@@ -69,12 +68,10 @@ class SalaryCandidateSet:
             )
 
 
-def candidate_transaction_from(nt: NormalisedTransaction, role: str = "main_salary") -> CandidateTransaction:
+def candidate_transaction_from(nt: NormalisedTransaction) -> CandidateTransaction:
     return CandidateTransaction(
         transaction_id=nt.id,
         date=nt.date.isoformat(),
         description=nt.raw_description,
         amount=float(nt.amount),
-        direction=nt.direction,
-        role_in_set=role,
     )

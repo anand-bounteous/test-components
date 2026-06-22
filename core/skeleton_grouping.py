@@ -256,7 +256,7 @@ class SkeletonGroupingDetector:
     ) -> SalaryCandidateSet:
         sorted_members = sorted(members, key=lambda t: t.date)
         txns: tuple[CandidateTransaction, ...] = tuple(
-            candidate_transaction_from(t, role="main_salary") for t in sorted_members
+            candidate_transaction_from(t) for t in sorted_members
         )
         # Employer tokens are the intersection of per-record employer
         # tokens — Phase 3 already extracted them.

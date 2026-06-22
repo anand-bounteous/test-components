@@ -146,7 +146,7 @@ class AmountDateFallbackDetector:
     ) -> SalaryCandidateSet:
         sorted_members = sorted(members, key=lambda t: t.date)
         txns: tuple[CandidateTransaction, ...] = tuple(
-            candidate_transaction_from(t, role="main_salary") for t in sorted_members
+            candidate_transaction_from(t) for t in sorted_members
         )
         stats = cluster_stats([t.amount for t in sorted_members])
         confidence = round(
