@@ -1,0 +1,278 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://salary-extractor/schemas/input.schema.json",
+  "title": "SalaryExtractorInput",
+  "type": "object",
+  "required": [
+    "analysis_id",
+    "scenario_description",
+    "transactions"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "analysis_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scenario_description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scenario_tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "jurisdiction": {
+      "type": "string",
+      "default": "GB"
+    },
+    "country_region": {
+      "type": "string",
+      "enum": [
+        "EnglandAndWales",
+        "Scotland",
+        "NorthernIreland",
+        "UnknownDefaultEnglandAndWales"
+      ],
+      "default": "EnglandAndWales"
+    },
+    "source_bank": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "validation_mode": {
+      "type": "string",
+      "enum": [
+        "lenient",
+        "strict"
+      ],
+      "default": "lenient"
+    },
+    "transactions": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "$ref": "#/$defs/transaction"
+      }
+    },
+    "payslip_hints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/payslip_hint"
+      }
+    },
+    "salary_hints": {
+      "$ref": "#/$defs/salary_hints"
+    },
+    "options": {
+      "$ref": "#/$defs/options"
+    },
+    "expected": {
+      "$ref": "#/$defs/expected"
+    }
+  },
+  "$defs": {
+    "transaction": {
+      "type": "object",
+      "required": [
+        "id",
+        "date",
+        "description",
+        "amount",
+        "direction"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "description": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "credit",
+            "debit"
+          ]
+        },
+        "balance": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "reference": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "counterparty_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "transaction_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "currency": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "account_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "raw_category": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "payslip_hint": {
+      "type": "object",
+      "required": [
+        "month",
+        "amount"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "month": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}$"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "hint_id": {
+          "type": "string"
+        }
+      }
+    },
+    "salary_hints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "approx_monthly": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "approx_yearly": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "tolerance_pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "options": {
+      "type": "object",
+      "description": "Phase 14 request-level options (audit / LLM toggles).",
+      "additionalProperties": false,
+      "properties": {
+        "enable_llm": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable LLM fallback for ambiguous results. Default OFF; deterministic-only when false."
+        },
+        "include_audit": {
+          "type": "boolean",
+          "default": false,
+          "description": "Return full audit (per-step durations, feature records, LLM calls)."
+        },
+        "llm_provider": {
+          "type": "string",
+          "enum": [
+            "anthropic",
+            "openai",
+            "mock"
+          ],
+          "description": "Concrete LLM provider; ignored when llm_client is caller-injected."
+        },
+        "llm_model": {
+          "type": "string",
+          "description": "Override the client's default_model."
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "description": "Labelled expectations consumed by later-phase feature tests.",
+      "additionalProperties": true,
+      "properties": {
+        "candidate_count_min": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_count_max": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "top_candidate_type": {
+          "type": "string"
+        },
+        "top_confidence_band": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium_high",
+            "medium",
+            "low",
+            "very_low"
+          ]
+        },
+        "must_contain_transaction_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "must_not_classify_as_probable_salary": {
+          "type": "boolean"
+        },
+        "expected_payday_model": {
+          "type": "string"
+        },
+        "expected_amount_model": {
+          "type": "string"
+        },
+        "expected_warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

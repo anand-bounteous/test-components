@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://salary-extractor/schemas/config.schema.json",
+  "title": "SalaryExtractorConfig",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "weights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "date_pattern_score",
+        "description_similarity_score",
+        "amount_consistency_score",
+        "payment_channel_score",
+        "coverage_score",
+        "context_bonus"
+      ],
+      "properties": {
+        "date_pattern_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "description_similarity_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "amount_consistency_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "payment_channel_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "coverage_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "context_bonus": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "penalties": {
+      "type": "object",
+      "required": [
+        "max_negative_signal_penalty"
+      ],
+      "properties": {
+        "max_negative_signal_penalty": {
+          "type": "number",
+          "maximum": 0
+        },
+        "per_marker": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "maximum": 0
+          }
+        }
+      }
+    },
+    "bonuses": {
+      "type": "object",
+      "properties": {
+        "per_anchor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "max_anchor_bonus": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "required": [
+        "high",
+        "medium_high",
+        "medium",
+        "low"
+      ],
+      "properties": {
+        "high": {
+          "type": "number"
+        },
+        "medium_high": {
+          "type": "number"
+        },
+        "medium": {
+          "type": "number"
+        },
+        "low": {
+          "type": "number"
+        },
+        "return_threshold": {
+          "type": "number"
+        }
+      }
+    },
+    "candidate_generation": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "amount": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "calendar": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "default_region": {
+          "type": "string",
+          "enum": [
+            "EnglandAndWales",
+            "Scotland",
+            "NorthernIreland"
+          ]
+        }
+      }
+    },
+    "versions": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "channels": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "salary_hints": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "negative_salary_signals": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "regions": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "source_bank": {
+      "type": "string"
+    }
+  }
+}

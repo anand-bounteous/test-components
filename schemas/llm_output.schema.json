@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://salary-extractor/schemas/llm_output.schema.json",
+  "title": "SalaryExtractorLLMOutput",
+  "description": "Schema for the LLM's reply after reviewing candidate salary sets (Design §14.3).",
+  "type": "object",
+  "required": [
+    "selected_candidate_set_ids",
+    "rejected_candidate_set_ids",
+    "confidence",
+    "reasoning"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "selected_candidate_set_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rejected_candidate_set_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "reasoning": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "additional_review_needed": {
+      "type": "boolean"
+    }
+  }
+}
