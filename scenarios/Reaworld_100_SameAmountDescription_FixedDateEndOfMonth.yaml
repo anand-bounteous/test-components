@@ -1,0 +1,134 @@
+# =============================================================================
+# Scenario: Same Amount + Description, Fixed End-of-Month Cadence (Positive)
+# Type:     positive — clean single salary stream, full pipeline
+# Purpose:  12 identical ACME India credits landing on the last calendar day
+#           of each month (Jan–Dec 2024). Amount is perfectly stable at
+#           £2,450.00. This is the ideal case: skeleton grouping should
+#           group all 12 and score them as a high-confidence probable_salary.
+#           Feb 29 confirms leap-year handling.
+# =============================================================================
+
+analysis_id: realworld_04_same_amount_description_fixed_date_end_of_month
+scenario_description: >
+  Same description (Company Name) with stable £2,450 monthly End of the month
+  (fixed) cadence — 12 months of identical ACME India credits on the last
+  calendar day. Should resolve to a single high-confidence probable_salary
+  candidate covering all 12 transactions.
+scenario_tags:
+  - only_salary
+  - same_amount
+  - same_date_endofmonth
+  - same_description
+  - realworld
+
+jurisdiction: GB
+country_region: EnglandAndWales
+validation_mode: lenient
+
+transactions:
+  - id: "8b1fa8eb3291"   # Jan 2024 — anchor: first payment of the year
+    date: "2024-01-31"
+    description: "Acme India"
+    amount: 3450.00
+    direction: credit
+
+  - id: "42dcdc18ea80"   # Feb 2024 — leap year: 29th validates leap-year handling
+    date: "2024-02-29"
+    description: "Acme India"
+    amount: 3450.00
+    direction: credit
+
+  - id: "6b3ac1294c9d"   # Mar 2024
+    date: "2024-03-31"
+    description: "Acme India"
+    amount: 3450.00
+    direction: credit
+
+  - id: "d660782db8a2"   # Apr 2024
+    date: "2024-04-30"
+    description: "Acme India"
+    amount: 2450.00
+    direction: credit
+
+  - id: "0f062a576a84"   # May 2024
+    date: "2024-05-31"
+    description: "Acme India"
+    amount: 2450.00
+    direction: credit
+
+  - id: "2bc874275ff0"   # Jun 2024
+    date: "2024-06-30"
+    description: "Acme India"
+    amount: 2450.00
+    direction: credit
+
+  - id: "018a0ccf76ff"   # Jul 2024
+    date: "2024-07-31"
+    description: "Acme India"
+    amount: 2450.00
+    direction: credit
+
+  - id: "967ba122f653"   # Aug 2024
+    date: "2024-08-31"
+    description: "Acme India"
+    amount: 2450.00
+    direction: credit
+
+  - id: "e785f6da8a05"   # Sep 2024
+    date: "2024-09-30"
+    description: "Acme India"
+    amount: 2450.00
+    direction: credit
+
+  - id: "b1c190222058"   # Oct 2024
+    date: "2024-10-31"
+    description: "Acme India"
+    amount: 2450.00
+    direction: credit
+
+  - id: "148b63ae3267"   # Nov 2024
+    date: "2024-11-30"
+    description: "Acme India"
+    amount: 2450.00
+    direction: credit
+
+  - id: "ba70edc19606"   # Dec 2024 — anchor: last payment of the year
+    date: "2024-12-31"
+    description: "Acme India"
+    amount: 2450.00
+    direction: credit
+
+expected:
+  # ── Candidate shape ─────────────────────────────────────────────────────────
+  # Exactly one candidate: all 12 credits should merge into a single set
+  candidate_count_exact: 1
+
+  # Detector should classify as probable_salary with high confidence
+  top_candidate_type: probable_salary
+  top_confidence_band: high
+
+  # ── Transaction membership ──────────────────────────────────────────────────
+  # All 12 IDs must appear in the top candidate.
+  # must_contain_transaction_ids_ordered: true  →  enforce chronological order
+  # (default: false — only checks membership, not position)
+  must_contain_transaction_ids:
+    - "8b1fa8eb3291"   # 2024-01-31
+    - "42dcdc18ea80"   # 2024-02-29 (leap year)
+    - "6b3ac1294c9d"   # 2024-03-31
+    - "d660782db8a2"   # 2024-04-30
+    - "0f062a576a84"   # 2024-05-31
+    - "2bc874275ff0"   # 2024-06-30
+    - "018a0ccf76ff"   # 2024-07-31
+    - "967ba122f653"   # 2024-08-31
+    - "e785f6da8a05"   # 2024-09-30
+    - "b1c190222058"   # 2024-10-31
+    - "148b63ae3267"   # 2024-11-30
+    - "ba70edc19606"   # 2024-12-31
+  must_contain_transaction_ids_ordered: true  # IDs must appear in order within the top candidate
+
+  # ── Pipeline phases ─────────────────────────────────────────────────────────
+  # Full pipeline expected to run (positive case, no early exit)
+  expected_pipeline_phases:
+    - validate
+    - normalise
+    - feature_extraction

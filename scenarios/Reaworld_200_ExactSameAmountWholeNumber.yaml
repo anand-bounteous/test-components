@@ -1,0 +1,30 @@
+# Scenario: Exact same amount (whole number) every month — stable amount model
+analysis_id: rw_200_exact_same_amount_whole
+scenario_description: >
+  12 monthly salary credits all at exactly £2,500 (no decimal). Amount model
+  should be 'stable' (CV effectively 0%). High confidence, probable_salary.
+scenario_tags:
+  - amount_variation
+  - stable_amount
+  - monthly
+validation_mode: lenient
+country_region: EnglandAndWales
+
+transactions:
+  - { id: rw200_t01, date: "2024-01-31", description: SOLARIS WAGES, amount: 2500 }
+  - { id: rw200_t02, date: "2024-02-29", description: SOLARIS WAGES, amount: 2500 }
+  - { id: rw200_t03, date: "2024-03-29", description: SOLARIS WAGES, amount: 2500 }
+  - { id: rw200_t04, date: "2024-04-30", description: SOLARIS WAGES, amount: 2500 }
+  - { id: rw200_t05, date: "2024-05-31", description: SOLARIS WAGES, amount: 2500 }
+  - { id: rw200_t06, date: "2024-06-28", description: SOLARIS WAGES, amount: 2500 }
+  - { id: rw200_t07, date: "2024-07-31", description: SOLARIS WAGES, amount: 2500 }
+  - { id: rw200_t08, date: "2024-08-30", description: SOLARIS WAGES, amount: 2500 }
+  - { id: rw200_t09, date: "2024-09-30", description: SOLARIS WAGES, amount: 2500 }
+  - { id: rw200_t10, date: "2024-10-31", description: SOLARIS WAGES, amount: 2500 }
+  - { id: rw200_t11, date: "2024-11-29", description: SOLARIS WAGES, amount: 2500 }
+  - { id: rw200_t12, date: "2024-12-31", description: SOLARIS WAGES, amount: 2500 }
+
+expected:
+  candidate_count_exact: 1
+  top_candidate_type: probable_salary
+  top_confidence_band: high

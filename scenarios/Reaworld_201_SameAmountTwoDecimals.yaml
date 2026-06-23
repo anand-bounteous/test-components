@@ -1,0 +1,31 @@
+# Scenario: Exact same amount to 2 decimal places every month — stable amount model
+analysis_id: rw_201_exact_same_amount_decimals
+scenario_description: >
+  12 monthly salary credits all at exactly £2,499.73. CV is effectively 0%.
+  Amount model should be 'stable'. High confidence, probable_salary.
+scenario_tags:
+  - amount_variation
+  - stable_amount
+  - monthly
+  - two_decimal
+validation_mode: lenient
+country_region: EnglandAndWales
+
+transactions:
+  - { id: rw201_t01, date: "2024-01-31", description: VERTEX PAYROLL, amount: 2499.73 }
+  - { id: rw201_t02, date: "2024-02-29", description: VERTEX PAYROLL, amount: 2499.73 }
+  - { id: rw201_t03, date: "2024-03-29", description: VERTEX PAYROLL, amount: 2499.73 }
+  - { id: rw201_t04, date: "2024-04-30", description: VERTEX PAYROLL, amount: 2499.73 }
+  - { id: rw201_t05, date: "2024-05-31", description: VERTEX PAYROLL, amount: 2499.73 }
+  - { id: rw201_t06, date: "2024-06-28", description: VERTEX PAYROLL, amount: 2499.73 }
+  - { id: rw201_t07, date: "2024-07-31", description: VERTEX PAYROLL, amount: 2499.73 }
+  - { id: rw201_t08, date: "2024-08-30", description: VERTEX PAYROLL, amount: 2499.73 }
+  - { id: rw201_t09, date: "2024-09-30", description: VERTEX PAYROLL, amount: 2499.73 }
+  - { id: rw201_t10, date: "2024-10-31", description: VERTEX PAYROLL, amount: 2499.73 }
+  - { id: rw201_t11, date: "2024-11-29", description: VERTEX PAYROLL, amount: 2499.73 }
+  - { id: rw201_t12, date: "2024-12-31", description: VERTEX PAYROLL, amount: 2499.73 }
+
+expected:
+  candidate_count_exact: 1
+  top_candidate_type: probable_salary
+  top_confidence_band: high

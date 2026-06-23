@@ -1,0 +1,82 @@
+# Scenario: 10 of 12 months present — March and August are missing
+# Tests gap detection (Enhancement B1): gap_summary should list missing months;
+# missing_salary_periods warning should be emitted.
+analysis_id: rw_106_missing_two_months
+scenario_description: >
+  10 monthly salary credits from January to December 2024, skipping March and
+  August. The pipeline detects 10 of 12 expected periods and emits a
+  missing_salary_periods warning. The gap_summary metadata on the candidate
+  should list 2024-03 and 2024-08 as missing months.
+scenario_tags:
+  - date_pattern
+  - gap_detection
+  - missing_months
+  - monthly
+validation_mode: lenient
+country_region: EnglandAndWales
+
+transactions:
+  - id: rw106_t01
+    date: "2024-01-31"
+    description: SUMMIT PAYROLL
+    amount: 3350.00
+
+  - id: rw106_t02
+    date: "2024-02-29"
+    description: SUMMIT PAYROLL
+    amount: 3350.00
+
+  # March 2024 is intentionally missing
+
+  - id: rw106_t04
+    date: "2024-04-30"
+    description: SUMMIT PAYROLL
+    amount: 3350.00
+
+  - id: rw106_t05
+    date: "2024-05-31"
+    description: SUMMIT PAYROLL
+    amount: 3350.00
+
+  - id: rw106_t06
+    date: "2024-06-28"
+    description: SUMMIT PAYROLL
+    amount: 3350.00
+
+  - id: rw106_t07
+    date: "2024-07-31"
+    description: SUMMIT PAYROLL
+    amount: 3350.00
+
+  # August 2024 is intentionally missing
+
+  - id: rw106_t09
+    date: "2024-09-30"
+    description: SUMMIT PAYROLL
+    amount: 3350.00
+
+  - id: rw106_t10
+    date: "2024-10-31"
+    description: SUMMIT PAYROLL
+    amount: 3350.00
+
+  - id: rw106_t11
+    date: "2024-11-29"
+    description: SUMMIT PAYROLL
+    amount: 3350.00
+
+  - id: rw106_t12
+    date: "2024-12-31"
+    description: SUMMIT PAYROLL
+    amount: 3350.00
+
+expected:
+  candidate_count_min: 1
+  top_candidate_type: probable_salary
+  # Enhancement B1: gap_summary should identify 2024-03 and 2024-08 as missing
+  expected_missing_months:
+    - "2024-03"
+    - "2024-08"
+  # Enhancement B1: missing_salary_periods warning should be emitted (when > 1 missing period)
+  must_have_warning_codes:
+    - missing_salary_periods

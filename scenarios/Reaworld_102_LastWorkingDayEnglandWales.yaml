@@ -1,0 +1,110 @@
+# Scenario: Last working day of each month (EnglandAndWales calendar)
+# Tests last_working_day payday model, bank-holiday and weekend shifts.
+analysis_id: rw_102_last_working_day_england_wales
+scenario_description: >
+  12 monthly salary credits each paid on the last working day of the month
+  for 2024 in the England and Wales calendar. Bank holidays and weekends shift
+  the payment date earlier. The pipeline should identify last_working_day and
+  return probable_salary with high confidence.
+scenario_tags:
+  - date_pattern
+  - last_working_day
+  - monthly
+  - calendar_aware
+  - england_wales
+validation_mode: lenient
+country_region: EnglandAndWales
+
+transactions:
+  # Jan 31 = Wednesday — last working day
+  - id: rw102_t01
+    date: "2024-01-31"
+    description: MERIDIAN PAYROLL
+    amount: 4200.00
+
+  # Feb 29 = Thursday (leap year) — last working day
+  - id: rw102_t02
+    date: "2024-02-29"
+    description: MERIDIAN PAYROLL
+    amount: 4200.00
+
+  # Mar 29 = Friday (Apr 1 = Easter Monday; Mar 29 = Good Friday → Mar 28 = last working day)
+  # Actually Good Friday is a bank holiday so last working day = Mar 28 (Thursday)
+  - id: rw102_t03
+    date: "2024-03-28"
+    description: MERIDIAN PAYROLL
+    amount: 4200.00
+
+  # Apr 30 = Tuesday — last working day
+  - id: rw102_t04
+    date: "2024-04-30"
+    description: MERIDIAN PAYROLL
+    amount: 4200.00
+
+  # May 31 = Friday — last working day
+  - id: rw102_t05
+    date: "2024-05-31"
+    description: MERIDIAN PAYROLL
+    amount: 4200.00
+
+  # Jun 28 = Friday (Jun 29-30 = weekend) — last working day
+  - id: rw102_t06
+    date: "2024-06-28"
+    description: MERIDIAN PAYROLL
+    amount: 4200.00
+
+  # Jul 31 = Wednesday — last working day
+  - id: rw102_t07
+    date: "2024-07-31"
+    description: MERIDIAN PAYROLL
+    amount: 4200.00
+
+  # Aug 30 = Friday (Aug 31 = Saturday; Aug 26 = bank holiday) — Aug 30 = last working day
+  - id: rw102_t08
+    date: "2024-08-30"
+    description: MERIDIAN PAYROLL
+    amount: 4200.00
+
+  # Sep 30 = Monday — last working day
+  - id: rw102_t09
+    date: "2024-09-30"
+    description: MERIDIAN PAYROLL
+    amount: 4200.00
+
+  # Oct 31 = Thursday — last working day
+  - id: rw102_t10
+    date: "2024-10-31"
+    description: MERIDIAN PAYROLL
+    amount: 4200.00
+
+  # Nov 29 = Friday (Nov 30 = Saturday) — last working day
+  - id: rw102_t11
+    date: "2024-11-29"
+    description: MERIDIAN PAYROLL
+    amount: 4200.00
+
+  # Dec 31 = Tuesday (Dec 25-26 = bank holidays) — Dec 31 = last working day
+  - id: rw102_t12
+    date: "2024-12-31"
+    description: MERIDIAN PAYROLL
+    amount: 4200.00
+
+expected:
+  candidate_count_min: 1
+  candidate_count_exact: 1
+  top_candidate_type: probable_salary
+  top_confidence_band: high
+  must_contain_transaction_ids:
+    - rw102_t01
+    - rw102_t02
+    - rw102_t03
+    - rw102_t04
+    - rw102_t05
+    - rw102_t06
+    - rw102_t07
+    - rw102_t08
+    - rw102_t09
+    - rw102_t10
+    - rw102_t11
+    - rw102_t12
+  must_contain_transaction_ids_ordered: true

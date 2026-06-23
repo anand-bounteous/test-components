@@ -1,0 +1,106 @@
+# Scenario: Fixed payday on the 25th of every month
+# Tests the fixed_day_n payday model with N=25.
+analysis_id: rw_101_fixed_date_25th
+scenario_description: >
+  12 monthly credits paid on the 25th of each month (2024). Where the 25th
+  falls on a weekend it is still on the 25th (the payer does not shift). The
+  pipeline should identify fixed_day_n (N=25), return probable_salary with
+  high confidence, and include all 12 transaction IDs.
+scenario_tags:
+  - date_pattern
+  - fixed_day
+  - monthly
+validation_mode: lenient
+
+transactions:
+  # Jan 25 = Thursday
+  - id: rw101_t01
+    date: "2024-01-25"
+    description: APEX MONTHLY PAY
+    amount: 3100.00
+
+  # Feb 25 = Sunday — still paid on 25th (employer does not adjust)
+  - id: rw101_t02
+    date: "2024-02-25"
+    description: APEX MONTHLY PAY
+    amount: 3100.00
+
+  # Mar 25 = Monday
+  - id: rw101_t03
+    date: "2024-03-25"
+    description: APEX MONTHLY PAY
+    amount: 3100.00
+
+  # Apr 25 = Thursday
+  - id: rw101_t04
+    date: "2024-04-25"
+    description: APEX MONTHLY PAY
+    amount: 3100.00
+
+  # May 25 = Saturday — still on 25th
+  - id: rw101_t05
+    date: "2024-05-25"
+    description: APEX MONTHLY PAY
+    amount: 3100.00
+
+  # Jun 25 = Tuesday
+  - id: rw101_t06
+    date: "2024-06-25"
+    description: APEX MONTHLY PAY
+    amount: 3100.00
+
+  # Jul 25 = Thursday
+  - id: rw101_t07
+    date: "2024-07-25"
+    description: APEX MONTHLY PAY
+    amount: 3100.00
+
+  # Aug 25 = Sunday — still on 25th
+  - id: rw101_t08
+    date: "2024-08-25"
+    description: APEX MONTHLY PAY
+    amount: 3100.00
+
+  # Sep 25 = Wednesday
+  - id: rw101_t09
+    date: "2024-09-25"
+    description: APEX MONTHLY PAY
+    amount: 3100.00
+
+  # Oct 25 = Friday
+  - id: rw101_t10
+    date: "2024-10-25"
+    description: APEX MONTHLY PAY
+    amount: 3100.00
+
+  # Nov 25 = Monday
+  - id: rw101_t11
+    date: "2024-11-25"
+    description: APEX MONTHLY PAY
+    amount: 3100.00
+
+  # Dec 25 = Wednesday — Christmas Day (bank holiday) — still on 25th (payer does not adjust)
+  - id: rw101_t12
+    date: "2024-12-25"
+    description: APEX MONTHLY PAY
+    amount: 3100.00
+
+expected:
+  candidate_count_min: 1
+  candidate_count_exact: 1
+  top_candidate_type: probable_salary
+  top_confidence_band: high
+  must_contain_transaction_ids:
+    - rw101_t01
+    - rw101_t02
+    - rw101_t03
+    - rw101_t04
+    - rw101_t05
+    - rw101_t06
+    - rw101_t07
+    - rw101_t08
+    - rw101_t09
+    - rw101_t10
+    - rw101_t11
+    - rw101_t12
+  must_contain_transaction_ids_ordered: true

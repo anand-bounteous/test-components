@@ -1,0 +1,30 @@
+# Scenario: Amount within ±2% tolerance (stable_with_minor_variation model)
+# Monthly amounts range ~£2,450–£2,550 with small variations (NI/tax rounding).
+analysis_id: rw_202_amount_within_tolerance
+scenario_description: >
+  12 monthly salary credits with amounts varying £2,450–£2,550 (CV ~2%).
+  Amount model should be 'stable_with_minor_variation'. High confidence.
+scenario_tags:
+  - amount_variation
+  - stable_minor_variation
+  - monthly
+validation_mode: lenient
+country_region: EnglandAndWales
+
+transactions:
+  - { id: rw202_t01, date: "2024-01-31", description: ORBIT SALARY, amount: 2500.00 }
+  - { id: rw202_t02, date: "2024-02-29", description: ORBIT SALARY, amount: 2487.50 }
+  - { id: rw202_t03, date: "2024-03-29", description: ORBIT SALARY, amount: 2512.30 }
+  - { id: rw202_t04, date: "2024-04-30", description: ORBIT SALARY, amount: 2495.80 }
+  - { id: rw202_t05, date: "2024-05-31", description: ORBIT SALARY, amount: 2500.00 }
+  - { id: rw202_t06, date: "2024-06-28", description: ORBIT SALARY, amount: 2505.20 }
+  - { id: rw202_t07, date: "2024-07-31", description: ORBIT SALARY, amount: 2498.70 }
+  - { id: rw202_t08, date: "2024-08-30", description: ORBIT SALARY, amount: 2453.10 }
+  - { id: rw202_t09, date: "2024-09-30", description: ORBIT SALARY, amount: 2500.00 }
+  - { id: rw202_t10, date: "2024-10-31", description: ORBIT SALARY, amount: 2547.60 }
+  - { id: rw202_t11, date: "2024-11-29", description: ORBIT SALARY, amount: 2500.00 }
+  - { id: rw202_t12, date: "2024-12-31", description: ORBIT SALARY, amount: 2500.00 }
+
+expected:
+  candidate_count_min: 1
+  top_candidate_type: probable_salary
