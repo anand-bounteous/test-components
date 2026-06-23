@@ -255,3 +255,20 @@ def test_realworld_fixture(rw_scenario_path: Path) -> None:
     scenario_id = payload.get("analysis_id", rw_scenario_path.stem)
     log_test_summary(logger, scenario_id, result)
     log_test_detail(logger, payload, expected, result)
+
+    # Log the final matched transactions (top candidate) so they appear inline
+    # with --log-cli-level=INFO/DEBUG (no -s needed).
+    if result.candidate_sets:
+        top = result.candidate_sets[0]
+        lines = [
+            f"--- FINAL MATCHED TRANSACTIONS  {rw_scenario_path.stem}  "
+            f"{top.candidate_type}  conf={top.confidence:.3f} ({top.confidence_band})  "
+            f"{len(top.transactions)} transactions ---"
+        ]
+        lines += [
+            f"  {t.date}  {t.description:<28} {t.amount:>10.2f}  [{t.transaction_id}]"
+            for t in top.transactions
+        ]
+        logger.info("\n".join(lines))
+    else:
+        logger.info("--- FINAL MATCHED TRANSACTIONS  %s  (no candidate found) ---", rw_scenario_path.stem)
