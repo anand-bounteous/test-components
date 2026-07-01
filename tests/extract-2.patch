@@ -52,6 +52,2225 @@ diff --color -ruN components-empty-1/.gitignore table-extractor-patch/.gitignore
 +# IDE
 +.vscode/
 +.idea/
+diff --color -ruN components-empty-1/Bank Transactions - 4 Extractors (10 samples each).postman_collection.json table-extractor-patch/Bank Transactions - 4 Extractors (10 samples each).postman_collection.json
+--- components-empty-1/Bank Transactions - 4 Extractors (10 samples each).postman_collection.json	1970-01-01 05:30:00
++++ table-extractor-patch/Bank Transactions - 4 Extractors (10 samples each).postman_collection.json	2026-07-01 12:18:21
+@@ -0,0 +1,2214 @@
++{
++  "info": {
++    "_postman_id": "fbe4604f-7750-4dc4-ada6-3cc9c11a9ac3",
++    "name": "Bank Transactions - 4 Extractors (10 samples each)",
++    "description": "Salary, Rent, Property-Sale, Gift detect endpoints. 10 varied samples per endpoint (40 total). Set {{baseUrl}} via the included environment or collection variable. Each request asserts HTTP 200 and ok=true, and logs candidate types/bands to the Postman console.",
++    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
++    "_exporter_id": "640152"
++  },
++  "item": [
++    {
++      "name": "01 Salary  -  POST /api/v1/salary/detect",
++      "item": [
++        {
++          "name": "Sal_01_BasicMonthly",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sal_01\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-25\",\n      \"description\": \"ACME LTD SALARY BACS\",\n      \"credit_amount\": \"2500\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-23\",\n      \"description\": \"ACME LTD SALARY BACS\",\n      \"credit_amount\": \"2500\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t3\",\n      \"date\": \"2024-03-25\",\n      \"description\": \"ACME LTD SALARY BACS\",\n      \"credit_amount\": \"2500\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/salary/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "salary",
++                "detect"
++              ]
++            },
++            "description": "Monthly salary, employer in description"
++          },
++          "response": []
++        },
++        {
++          "name": "Sal_02_EmployerHintExact",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ],
++                "type": "text/javascript",
++                "packages": {},
++                "requests": {}
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n    \"analysis_id\": \"Sal_02\",\n    \"country_region\": \"EnglandAndWales\",\n    \"validation_mode\": \"lenient\",\n    \"employer_hints\": {\n        \"current_employer\": \"GLOBEX CORP\"\n    },\n    \"transactions\": [\n        {\n            \"id\": \"t1\",\n            \"date\": \"2024-01-25\",\n            \"description\": \"GLOBEX CORP PAYROLL\",\n            \"credit_amount\": \"3100\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t2\",\n            \"date\": \"2024-02-23\",\n            \"description\": \"GLOBEX CORP PAYROLL\",\n            \"credit_amount\": \"3100\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t3\",\n            \"date\": \"2024-03-25\",\n            \"description\": \"GLOBEX CORP PAYROLL\",\n            \"credit_amount\": \"3100\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t8\",\n            \"date\": \"2024-01-25\",\n            \"description\": \"GLOBAL TECH LTD SALARY BACS\",\n            \"credit_amount\": \"3200\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t9\",\n            \"date\": \"2024-05-01\",\n            \"description\": \"SAVINGS ACCOUNT INTEREST\",\n            \"credit_amount\": \"5.15\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t10\",\n            \"date\": \"2024-02-23\",\n            \"description\": \"GLOBAL TECH LTD SALARY BACS\",\n            \"credit_amount\": \"3200\",\n            \"debit_amount\": 0\n        }\n    ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/salary/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "salary",
++                "detect"
++              ]
++            },
++            "description": "employer_hints exact -> very_high"
++          },
++          "response": []
++        },
++        {
++          "name": "Sal_03_ApproxMonthlyHint",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sal_03\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"salary_hints\": {\n    \"approx_monthly\": 2800,\n    \"tolerance_pct\": 0.05\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-25\",\n      \"description\": \"INITECH SALARY\",\n      \"credit_amount\": \"2750\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-23\",\n      \"description\": \"INITECH SALARY\",\n      \"credit_amount\": \"2800\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t3\",\n      \"date\": \"2024-03-25\",\n      \"description\": \"INITECH SALARY\",\n      \"credit_amount\": \"2850\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/salary/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "salary",
++                "detect"
++              ]
++            },
++            "description": "salary_hints.approx_monthly + tolerance"
++          },
++          "response": []
++        },
++        {
++          "name": "Sal_04_ApproxYearlyHint",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sal_04\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"salary_hints\": {\n    \"approx_yearly\": 36000,\n    \"tolerance_pct\": 0.05\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-25\",\n      \"description\": \"UMBRELLA LTD SALARY\",\n      \"credit_amount\": \"3000\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-23\",\n      \"description\": \"UMBRELLA LTD SALARY\",\n      \"credit_amount\": \"3000\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t3\",\n      \"date\": \"2024-03-25\",\n      \"description\": \"UMBRELLA LTD SALARY\",\n      \"credit_amount\": \"3000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/salary/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "salary",
++                "detect"
++              ]
++            },
++            "description": "salary_hints.approx_yearly (~/12)"
++          },
++          "response": []
++        },
++        {
++          "name": "Sal_05_PayslipHints",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sal_05\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"payslip_hints\": [\n    {\n      \"month\": \"2024-01\",\n      \"amount\": 2600,\n      \"hint_id\": \"p1\"\n    },\n    {\n      \"month\": \"2024-02\",\n      \"amount\": 2600,\n      \"hint_id\": \"p2\"\n    },\n    {\n      \"month\": \"2024-03\",\n      \"amount\": 2600,\n      \"hint_id\": \"p3\"\n    }\n  ],\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-25\",\n      \"description\": \"WAYNE ENT SALARY\",\n      \"credit_amount\": \"2600\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-23\",\n      \"description\": \"WAYNE ENT SALARY\",\n      \"credit_amount\": \"2600\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t3\",\n      \"date\": \"2024-03-25\",\n      \"description\": \"WAYNE ENT SALARY\",\n      \"credit_amount\": \"2600\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/salary/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "salary",
++                "detect"
++              ]
++            },
++            "description": "payslip_hints per-month amounts"
++          },
++          "response": []
++        },
++        {
++          "name": "Sal_06_PayDateDrift",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sal_06\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"employer_hints\": {\n    \"current_employer\": \"STARK IND\"\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-31\",\n      \"description\": \"STARK IND SALARY\",\n      \"credit_amount\": \"4200\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-29\",\n      \"description\": \"STARK IND SALARY\",\n      \"credit_amount\": \"4200\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t3\",\n      \"date\": \"2024-03-29\",\n      \"description\": \"STARK IND SALARY\",\n      \"credit_amount\": \"4200\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/salary/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "salary",
++                "detect"
++              ]
++            },
++            "description": "pay date drifts onto weekends (BACS working-day shift)"
++          },
++          "response": []
++        },
++        {
++          "name": "Sal_07_BonusMonth",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sal_07\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"salary_hints\": {\n    \"approx_monthly\": 3000,\n    \"tolerance_pct\": 0.1\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-25\",\n      \"description\": \"CYBERDYNE SALARY\",\n      \"credit_amount\": \"3000\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-23\",\n      \"description\": \"CYBERDYNE SALARY\",\n      \"credit_amount\": \"3000\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t3\",\n      \"date\": \"2024-03-25\",\n      \"description\": \"CYBERDYNE SALARY + BONUS\",\n      \"credit_amount\": \"5000\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t4\",\n      \"date\": \"2024-04-25\",\n      \"description\": \"CYBERDYNE SALARY\",\n      \"credit_amount\": \"3000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/salary/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "salary",
++                "detect"
++              ]
++            },
++            "description": "variable bonus month among stable salary"
++          },
++          "response": []
++        },
++        {
++          "name": "Sal_08_EmploymentTransition",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sal_08\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"employer_hints\": {\n    \"current_employer\": \"HOOLI INC\",\n    \"previous_employer\": \"PIED PIPER\"\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-25\",\n      \"description\": \"PIED PIPER SALARY\",\n      \"credit_amount\": \"2400\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-23\",\n      \"description\": \"PIED PIPER SALARY\",\n      \"credit_amount\": \"2400\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t3\",\n      \"date\": \"2024-04-25\",\n      \"description\": \"HOOLI INC PAYROLL\",\n      \"credit_amount\": \"3200\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t4\",\n      \"date\": \"2024-05-24\",\n      \"description\": \"HOOLI INC PAYROLL\",\n      \"credit_amount\": \"3200\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/salary/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "salary",
++                "detect"
++              ]
++            },
++            "description": "two employers; previous_employer hint"
++          },
++          "response": []
++        },
++        {
++          "name": "Sal_09_FasterPaymentVariant",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sal_09\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"employer_hints\": {\n    \"current_employer\": \"MONZO LABS\"\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-25\",\n      \"description\": \"FPS MONZO LABS SALARY\",\n      \"credit_amount\": \"2900\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-23\",\n      \"description\": \"FPS MONZO LABS SALARY\",\n      \"credit_amount\": \"2900\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t3\",\n      \"date\": \"2024-03-25\",\n      \"description\": \"FPS MONZO LABS SALARY\",\n      \"credit_amount\": \"2900\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/salary/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "salary",
++                "detect"
++              ]
++            },
++            "description": "Faster Payments / fintech-style description"
++          },
++          "response": []
++        },
++        {
++          "name": "Sal_10_SingleCreditNoise",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sal_10\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"salary_hints\": {\n    \"approx_monthly\": 2500,\n    \"tolerance_pct\": 0.05\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-25\",\n      \"description\": \"ACME LTD SALARY\",\n      \"credit_amount\": \"2500\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-01-10\",\n      \"description\": \"TESCO STORES\",\n      \"credit_amount\": \"42\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t3\",\n      \"date\": \"2024-01-15\",\n      \"description\": \"REFUND AMAZON\",\n      \"credit_amount\": \"18\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/salary/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "salary",
++                "detect"
++              ]
++            },
++            "description": "single salary credit among unrelated noise"
++          },
++          "response": []
++        },
++        {
++          "name": "Sal_10_SingleCreditNoise Copy",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ],
++                "type": "text/javascript",
++                "packages": {},
++                "requests": {}
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n    \"analysis_id\": \"Sal_10\",\n    \"country_region\": \"EnglandAndWales\",\n    \"validation_mode\": \"lenient\",\n    \"transactions\": [\n        {\n            \"id\": \"t1\",\n            \"date\": \"2024-01-25\",\n            \"description\": \"ACME LTD SALARY BACS 837248723\",\n            \"credit_amount\": \"2500\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t11\",\n            \"date\": \"2024-01-25\",\n            \"description\": \"Transfer 12324235\",\n            \"credit_amount\": \"2500\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t2\",\n            \"date\": \"2024-01-31\",\n            \"description\": \"SAVINGS ACCOUNT INTEREST\",\n            \"credit_amount\": \"4.82\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t3\",\n            \"date\": \"2024-02-10\",\n            \"description\": \"AMAZON REFUND\",\n            \"credit_amount\": \"38.99\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t4\",\n            \"date\": \"2024-02-23\",\n            \"description\": \"ACME LTD SALARY BACS 894753984\",\n            \"credit_amount\": \"2500\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t12\",\n            \"date\": \"2024-02-23\",\n            \"description\": \"Transfer 653463563\",\n            \"credit_amount\": \"2500\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t5\",\n            \"date\": \"2024-03-05\",\n            \"description\": \"JOHN SMITH BANK TRANSFER\",\n            \"credit_amount\": \"150.00\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t6\",\n            \"date\": \"2024-03-25\",\n            \"description\": \"ACME LTD SALARY BACS 745387456\",\n            \"credit_amount\": \"2500\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t61\",\n            \"date\": \"2024-03-25\",\n            \"description\": \"Transfer 49506i456\",\n            \"credit_amount\": \"2500\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t7\",\n            \"date\": \"2024-04-02\",\n            \"description\": \"CARD CASHBACK\",\n            \"credit_amount\": \"12.50\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t8\",\n            \"date\": \"2024-04-26\",\n            \"description\": \"GLOBAL TECH LTD SALARY BACS\",\n            \"credit_amount\": \"3200\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t9\",\n            \"date\": \"2024-05-01\",\n            \"description\": \"SAVINGS ACCOUNT INTEREST\",\n            \"credit_amount\": \"5.15\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t10\",\n            \"date\": \"2024-05-24\",\n            \"description\": \"GLOBAL TECH LTD SALARY BACS\",\n            \"credit_amount\": \"3200\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t11\",\n            \"date\": \"2024-05-29\",\n            \"description\": \"HMRC TAX REFUND\",\n            \"credit_amount\": \"185.40\",\n            \"debit_amount\": 0\n        },\n        {\n            \"id\": \"t12\",\n            \"date\": \"2024-06-15\",\n            \"description\": \"BANK TRANSFER FROM EMMA\",\n            \"credit_amount\": \"75.00\",\n            \"debit_amount\": 0\n        }\n    ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/salary/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "salary",
++                "detect"
++              ]
++            },
++            "description": "single salary credit among unrelated noise"
++          },
++          "response": []
++        }
++      ]
++    },
++    {
++      "name": "02 Rent  -  POST /api/v1/rent/detect",
++      "item": [
++        {
++          "name": "Rent_01_StableMonthly",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Rent_01\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-02\",\n      \"description\": \"RENT PAYMENT FLAT 2A\",\n      \"credit_amount\": \"1100\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-01\",\n      \"description\": \"RENTAL INCOME FLAT 2A\",\n      \"credit_amount\": \"1100\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t3\",\n      \"date\": \"2024-03-05\",\n      \"description\": \"RENT FLAT 2A TENANT\",\n      \"credit_amount\": \"1100\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t4\",\n      \"date\": \"2024-04-01\",\n      \"description\": \"RENTAL FLAT 2A\",\n      \"credit_amount\": \"1100\",\n      \"debit_amount\": 0\n    }\n  ],\n  \"rent_hints\": {\n    \"amount\": 1100,\n    \"target_day_of_month\": 1,\n    \"tolerance_days\": 7\n  }\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/rent/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "rent",
++                "detect"
++              ]
++            },
++            "description": "Stable monthly rent, descriptions vary, dates drift within +/-7d"
++          },
++          "response": []
++        },
++        {
++          "name": "Rent_02_RenteeExact",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Rent_02\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-01\",\n      \"description\": \"RENT FROM JOHN HARRISON\",\n      \"credit_amount\": \"950\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-01\",\n      \"description\": \"RENT FROM JOHN HARRISON\",\n      \"credit_amount\": \"950\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t3\",\n      \"date\": \"2024-03-01\",\n      \"description\": \"RENT FROM JOHN HARRISON\",\n      \"credit_amount\": \"950\",\n      \"debit_amount\": 0\n    }\n  ],\n  \"rent_hints\": {\n    \"amount\": 950,\n    \"rentee_name\": \"JOHN HARRISON\",\n    \"target_day_of_month\": 1,\n    \"tolerance_days\": 7\n  }\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/rent/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "rent",
++                "detect"
++              ]
++            },
++            "description": "Rentee name exact -> very_high"
++          },
++          "response": []
++        },
++        {
++          "name": "Rent_03_RenteePartial",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Rent_03\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-01\",\n      \"description\": \"RENT FROM J HARRISON\",\n      \"credit_amount\": \"950\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-01\",\n      \"description\": \"RENT FROM J HARRISON\",\n      \"credit_amount\": \"950\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t3\",\n      \"date\": \"2024-03-01\",\n      \"description\": \"RENT FROM J HARRISON\",\n      \"credit_amount\": \"950\",\n      \"debit_amount\": 0\n    }\n  ],\n  \"rent_hints\": {\n    \"amount\": 950,\n    \"rentee_name\": \"HARRISON MICHAEL\",\n    \"target_day_of_month\": 1,\n    \"tolerance_days\": 7\n  }\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/rent/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "rent",
++                "detect"
++              ]
++            },
++            "description": "Rentee partial-token hint -> high"
++          },
++          "response": []
++        },
++        {
++          "name": "Rent_04_TwoProperties",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Rent_04\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"transactions\": [\n    {\n      \"id\": \"a1\",\n      \"date\": \"2024-01-01\",\n      \"description\": \"RENT 14 HIGH ST\",\n      \"credit_amount\": \"1100\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"a2\",\n      \"date\": \"2024-02-01\",\n      \"description\": \"RENT 14 HIGH ST\",\n      \"credit_amount\": \"1100\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"a3\",\n      \"date\": \"2024-03-01\",\n      \"description\": \"RENT 14 HIGH ST\",\n      \"credit_amount\": \"1100\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"b1\",\n      \"date\": \"2024-01-05\",\n      \"description\": \"RENT 9 PARK ROAD\",\n      \"credit_amount\": \"1450\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"b2\",\n      \"date\": \"2024-02-05\",\n      \"description\": \"RENT 9 PARK ROAD\",\n      \"credit_amount\": \"1450\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"b3\",\n      \"date\": \"2024-03-05\",\n      \"description\": \"RENT 9 PARK ROAD\",\n      \"credit_amount\": \"1450\",\n      \"debit_amount\": 0\n    }\n  ],\n  \"rent_hints\": {\n    \"properties\": [\n      {\n        \"property_id\": \"p1\",\n        \"amount\": 1100,\n        \"property_ref\": \"14 HIGH ST\"\n      },\n      {\n        \"property_id\": \"p2\",\n        \"amount\": 1450,\n        \"property_ref\": \"9 PARK ROAD\"\n      }\n    ]\n  }\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/rent/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "rent",
++                "detect"
++              ]
++            },
++            "description": "Two property streams -> 2 candidate sets"
++          },
++          "response": []
++        },
++        {
++          "name": "Rent_05_AmountTolerance",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Rent_05\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-01\",\n      \"description\": \"RENTAL INCOME 5 OAK AVE\",\n      \"credit_amount\": \"1100\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-01\",\n      \"description\": \"RENTAL INCOME 5 OAK AVE\",\n      \"credit_amount\": \"1120\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t3\",\n      \"date\": \"2024-03-01\",\n      \"description\": \"RENTAL INCOME 5 OAK AVE\",\n      \"credit_amount\": \"1130\",\n      \"debit_amount\": 0\n    }\n  ],\n  \"rent_hints\": {\n    \"amount\": 1100,\n    \"tolerance_pct\": 0.05,\n    \"target_day_of_month\": 1,\n    \"tolerance_days\": 7\n  }\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/rent/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "rent",
++                "detect"
++              ]
++            },
++            "description": "Amount drifts within tolerance_pct 0.05"
++          },
++          "response": []
++        },
++        {
++          "name": "Rent_06_DateOutsideWindow",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Rent_06\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-16\",\n      \"description\": \"RENTAL INCOME 8 ELM RD\",\n      \"credit_amount\": \"1200\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-15\",\n      \"description\": \"RENTAL INCOME 8 ELM RD\",\n      \"credit_amount\": \"1200\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t3\",\n      \"date\": \"2024-03-18\",\n      \"description\": \"RENTAL INCOME 8 ELM RD\",\n      \"credit_amount\": \"1200\",\n      \"debit_amount\": 0\n    }\n  ],\n  \"rent_hints\": {\n    \"amount\": 1200,\n    \"target_day_of_month\": 1,\n    \"tolerance_days\": 7\n  }\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/rent/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "rent",
++                "detect"
++              ]
++            },
++            "description": "Payments mid-month, outside +/-7d -> downgrade"
++          },
++          "response": []
++        },
++        {
++          "name": "Rent_07_DepositRefundNegative",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Rent_07\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-01\",\n      \"description\": \"SECURITY DEPOSIT REFUND\",\n      \"credit_amount\": \"1100\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-01\",\n      \"description\": \"SECURITY DEPOSIT REFUND\",\n      \"credit_amount\": \"1100\",\n      \"debit_amount\": 0\n    }\n  ],\n  \"rent_hints\": {\n    \"amount\": 1100\n  }\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/rent/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "rent",
++                "detect"
++              ]
++            },
++            "description": "Deposit-refund negative keyword credits"
++          },
++          "response": []
++        },
++        {
++          "name": "Rent_08_MissingMonthGap",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Rent_08\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-01\",\n      \"description\": \"RENT 3 BIRCH CL\",\n      \"credit_amount\": \"1000\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-01\",\n      \"description\": \"RENT 3 BIRCH CL\",\n      \"credit_amount\": \"1000\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t4\",\n      \"date\": \"2024-04-01\",\n      \"description\": \"RENT 3 BIRCH CL\",\n      \"credit_amount\": \"1000\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t5\",\n      \"date\": \"2024-05-01\",\n      \"description\": \"RENT 3 BIRCH CL\",\n      \"credit_amount\": \"1000\",\n      \"debit_amount\": 0\n    }\n  ],\n  \"rent_hints\": {\n    \"amount\": 1000,\n    \"target_day_of_month\": 1,\n    \"tolerance_days\": 7\n  }\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/rent/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "rent",
++                "detect"
++              ]
++            },
++            "description": "Mar missing from Jan/Feb/Apr/May"
++          },
++          "response": []
++        },
++        {
++          "name": "Rent_09_TwoPaymentsMin",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Rent_09\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-01\",\n      \"description\": \"RENTAL INCOME 1 KING ST\",\n      \"credit_amount\": \"875\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-01\",\n      \"description\": \"RENTAL INCOME 1 KING ST\",\n      \"credit_amount\": \"875\",\n      \"debit_amount\": 0\n    }\n  ],\n  \"rent_hints\": {\n    \"amount\": 875\n  }\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/rent/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "rent",
++                "detect"
++              ]
++            },
++            "description": "Exactly two monthly payments (min boundary)"
++          },
++          "response": []
++        },
++        {
++          "name": "Rent_10_PostcodeLocationHint",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Rent_10\",\n  \"country_region\": \"EnglandAndWales\",\n  \"validation_mode\": \"lenient\",\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-01-01\",\n      \"description\": \"RENT LEEDS LS1 4AB\",\n      \"credit_amount\": \"1300\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-02-01\",\n      \"description\": \"RENT LEEDS LS1 4AB\",\n      \"credit_amount\": \"1300\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t3\",\n      \"date\": \"2024-03-01\",\n      \"description\": \"RENT LEEDS LS1 4AB\",\n      \"credit_amount\": \"1300\",\n      \"debit_amount\": 0\n    }\n  ],\n  \"rent_hints\": {\n    \"amount\": 1300,\n    \"location\": \"LEEDS\",\n    \"postcode\": \"LS1 4AB\"\n  }\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/rent/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "rent",
++                "detect"
++              ]
++            },
++            "description": "Location + postcode tokens in description"
++          },
++          "response": []
++        }
++      ]
++    },
++    {
++      "name": "03 Property Sale  -  POST /api/v1/property-sale/detect",
++      "item": [
++        {
++          "name": "Sale_01_FullPaymentInRange",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sale_01\",\n  \"country_region\": \"EnglandAndWales\",\n  \"sale_hints\": {\n    \"amount\": 250000,\n    \"tolerance_pct\": 0.1,\n    \"timeline_hint\": \"15d\",\n    \"reference_date\": \"2024-06-15\"\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-06-15\",\n      \"description\": \"COMPLETION FUNDS CHAPS\",\n      \"credit_amount\": \"248500\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/property-sale/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "property-sale",
++                "detect"
++              ]
++            },
++            "description": "Single completion credit within +/-10% band"
++          },
++          "response": []
++        },
++        {
++          "name": "Sale_02_PartialPayments",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sale_02\",\n  \"country_region\": \"EnglandAndWales\",\n  \"sale_hints\": {\n    \"amount\": 250000,\n    \"tolerance_pct\": 0.1,\n    \"timeline_hint\": \"15d\",\n    \"reference_date\": \"2024-06-15\"\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-06-10\",\n      \"description\": \"PART PAYMENT SOLICITOR\",\n      \"credit_amount\": \"100000\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-06-15\",\n      \"description\": \"PART PAYMENT CONVEYANCING\",\n      \"credit_amount\": \"100000\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t3\",\n      \"date\": \"2024-06-20\",\n      \"description\": \"BALANCE COMPLETION FUNDS\",\n      \"credit_amount\": \"50000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/property-sale/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "property-sale",
++                "detect"
++              ]
++            },
++            "description": "Three partials sum within band and +/-15d window"
++          },
++          "response": []
++        },
++        {
++          "name": "Sale_03_BuyerExact",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sale_03\",\n  \"country_region\": \"EnglandAndWales\",\n  \"sale_hints\": {\n    \"amount\": 320000,\n    \"tolerance_pct\": 0.1,\n    \"reference_date\": \"2024-09-01\",\n    \"buyer_name\": \"SARAH THOMPSON\"\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-09-02\",\n      \"description\": \"COMPLETION FUNDS FROM SARAH THOMPSON\",\n      \"credit_amount\": \"320000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/property-sale/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "property-sale",
++                "detect"
++              ]
++            },
++            "description": "Buyer name exact -> very_high"
++          },
++          "response": []
++        },
++        {
++          "name": "Sale_04_NoReferenceDate",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sale_04\",\n  \"country_region\": \"EnglandAndWales\",\n  \"sale_hints\": {\n    \"amount\": 200000,\n    \"tolerance_pct\": 0.1\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-05-20\",\n      \"description\": \"PROPERTY SALE PROCEEDS CHAPS\",\n      \"credit_amount\": \"199000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/property-sale/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "property-sale",
++                "detect"
++              ]
++            },
++            "description": "No reference_date -> group-start anchor"
++          },
++          "response": []
++        },
++        {
++          "name": "Sale_05_MissingAmount",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sale_05\",\n  \"country_region\": \"EnglandAndWales\",\n  \"sale_hints\": {\n    \"tolerance_pct\": 0.1\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-06-15\",\n      \"description\": \"COMPLETION FUNDS\",\n      \"credit_amount\": \"250000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/property-sale/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "property-sale",
++                "detect"
++              ]
++            },
++            "description": "Mandatory amount omitted -> MISSING_SALE_AMOUNT warning"
++          },
++          "response": []
++        },
++        {
++          "name": "Sale_06_AmountOutsideBand",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sale_06\",\n  \"country_region\": \"EnglandAndWales\",\n  \"sale_hints\": {\n    \"amount\": 250000,\n    \"tolerance_pct\": 0.1,\n    \"reference_date\": \"2024-06-15\"\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-06-15\",\n      \"description\": \"COMPLETION FUNDS CHAPS\",\n      \"credit_amount\": \"150000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/property-sale/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "property-sale",
++                "detect"
++              ]
++            },
++            "description": "Credit 40% under hint -> outside band, no match"
++          },
++          "response": []
++        },
++        {
++          "name": "Sale_07_Timeline4w",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sale_07\",\n  \"country_region\": \"EnglandAndWales\",\n  \"sale_hints\": {\n    \"amount\": 280000,\n    \"tolerance_pct\": 0.1,\n    \"timeline_hint\": \"4w\",\n    \"reference_date\": \"2024-07-01\"\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-07-21\",\n      \"description\": \"SALE PROCEEDS COMPLETION\",\n      \"credit_amount\": \"278000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/property-sale/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "property-sale",
++                "detect"
++              ]
++            },
++            "description": "timeline_hint 4w (+/-28d), credit 20d from reference"
++          },
++          "response": []
++        },
++        {
++          "name": "Sale_08_PartialOutsideWindow",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sale_08\",\n  \"country_region\": \"EnglandAndWales\",\n  \"sale_hints\": {\n    \"amount\": 250000,\n    \"tolerance_pct\": 0.1,\n    \"timeline_hint\": \"15d\",\n    \"reference_date\": \"2024-06-15\"\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-06-15\",\n      \"description\": \"PART PAYMENT SOLICITOR\",\n      \"credit_amount\": \"130000\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-08-01\",\n      \"description\": \"PART PAYMENT SOLICITOR\",\n      \"credit_amount\": \"120000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/property-sale/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "property-sale",
++                "detect"
++              ]
++            },
++            "description": "One partial in-window, one 40d out -> aggregate short"
++          },
++          "response": []
++        },
++        {
++          "name": "Sale_09_BuyerPartialHint",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sale_09\",\n  \"country_region\": \"EnglandAndWales\",\n  \"sale_hints\": {\n    \"amount\": 410000,\n    \"tolerance_pct\": 0.1,\n    \"reference_date\": \"2024-10-01\",\n    \"buyer_name\": \"THOMPSON HOLDINGS\"\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-10-03\",\n      \"description\": \"COMPLETION FUNDS THOMPSON\",\n      \"credit_amount\": \"409000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/property-sale/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "property-sale",
++                "detect"
++              ]
++            },
++            "description": "Buyer partial-token hint -> high floor"
++          },
++          "response": []
++        },
++        {
++          "name": "Sale_10_PropertyPostcodeHint",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Sale_10\",\n  \"country_region\": \"EnglandAndWales\",\n  \"sale_hints\": {\n    \"amount\": 275000,\n    \"tolerance_pct\": 0.1,\n    \"reference_date\": \"2024-08-10\",\n    \"property_ref\": \"22 MILL LANE\",\n    \"postcode\": \"BS1 5TR\"\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-08-11\",\n      \"description\": \"SALE PROCEEDS 22 MILL LANE BS1 5TR\",\n      \"credit_amount\": \"274000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/property-sale/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "property-sale",
++                "detect"
++              ]
++            },
++            "description": "property_ref + postcode hint in description"
++          },
++          "response": []
++        }
++      ]
++    },
++    {
++      "name": "04 Gift  -  POST /api/v1/gift/detect",
++      "item": [
++        {
++          "name": "Gift_01_SingleExact",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Gift_01\",\n  \"country_region\": \"EnglandAndWales\",\n  \"gift_hints\": {\n    \"amount\": 5000,\n    \"expected_date\": \"2024-03-10\",\n    \"tolerance_days\": 5\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-03-10\",\n      \"description\": \"BIRTHDAY GIFT FROM MUM\",\n      \"credit_amount\": \"5000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/gift/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "gift",
++                "detect"
++              ]
++            },
++            "description": "Single gift exact amount + GIFT keyword"
++          },
++          "response": []
++        },
++        {
++          "name": "Gift_02_Overpayment",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Gift_02\",\n  \"country_region\": \"EnglandAndWales\",\n  \"gift_hints\": {\n    \"amount\": 5000,\n    \"expected_date\": \"2024-03-10\",\n    \"tolerance_days\": 5\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-03-10\",\n      \"description\": \"MONETARY GIFT FROM DAD\",\n      \"credit_amount\": \"6000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/gift/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "gift",
++                "detect"
++              ]
++            },
++            "description": "Single gift greater than hint -> lower exact bonus"
++          },
++          "response": []
++        },
++        {
++          "name": "Gift_03_PartialMultiTxn",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Gift_03\",\n  \"country_region\": \"EnglandAndWales\",\n  \"gift_hints\": {\n    \"amount\": 5000,\n    \"expected_date\": \"2024-03-10\",\n    \"tolerance_days\": 5,\n    \"donor_name\": \"AUNT MARY\"\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-03-09\",\n      \"description\": \"GIFT FROM AUNT MARY\",\n      \"credit_amount\": \"2500\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-03-11\",\n      \"description\": \"GIFT FROM AUNT MARY\",\n      \"credit_amount\": \"2500\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/gift/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "gift",
++                "detect"
++              ]
++            },
++            "description": "Two partials sum to hint, same donor within +/-5d"
++          },
++          "response": []
++        },
++        {
++          "name": "Gift_04_DonorExact",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Gift_04\",\n  \"country_region\": \"EnglandAndWales\",\n  \"gift_hints\": {\n    \"amount\": 10000,\n    \"expected_date\": \"2024-04-01\",\n    \"donor_name\": \"ROBERT KING\"\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-04-01\",\n      \"description\": \"WEDDING GIFT FROM ROBERT KING\",\n      \"credit_amount\": \"10000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/gift/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "gift",
++                "detect"
++              ]
++            },
++            "description": "Donor name exact -> very_high"
++          },
++          "response": []
++        },
++        {
++          "name": "Gift_05a_DateOnTarget",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Gift_05a\",\n  \"country_region\": \"EnglandAndWales\",\n  \"gift_hints\": {\n    \"amount\": 3000,\n    \"expected_date\": \"2024-05-15\",\n    \"tolerance_days\": 5\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-05-15\",\n      \"description\": \"CASH GIFT\",\n      \"credit_amount\": \"3000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/gift/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "gift",
++                "detect"
++              ]
++            },
++            "description": "Gift on expected_date (delta 0)"
++          },
++          "response": []
++        },
++        {
++          "name": "Gift_05b_DateOff8d",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Gift_05b\",\n  \"country_region\": \"EnglandAndWales\",\n  \"gift_hints\": {\n    \"amount\": 3000,\n    \"expected_date\": \"2024-05-15\",\n    \"tolerance_days\": 5\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-05-23\",\n      \"description\": \"CASH GIFT\",\n      \"credit_amount\": \"3000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/gift/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "gift",
++                "detect"
++              ]
++            },
++            "description": "Same gift +8d from expected_date (outside +/-5d)"
++          },
++          "response": []
++        },
++        {
++          "name": "Gift_06_TwoDonors",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Gift_06\",\n  \"country_region\": \"EnglandAndWales\",\n  \"gift_hints\": {\n    \"amount\": 2000\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-02-01\",\n      \"description\": \"GIFT FROM GRANDMA\",\n      \"credit_amount\": \"2500\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-06-01\",\n      \"description\": \"GIFT FROM UNCLE TOM\",\n      \"credit_amount\": \"3000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/gift/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "gift",
++                "detect"
++              ]
++            },
++            "description": "Two plausible gifts, different donors/dates"
++          },
++          "response": []
++        },
++        {
++          "name": "Gift_07_MissingAmount",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Gift_07\",\n  \"country_region\": \"EnglandAndWales\",\n  \"gift_hints\": {\n    \"expected_date\": \"2024-03-10\"\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-03-10\",\n      \"description\": \"GIFT FROM MUM\",\n      \"credit_amount\": \"5000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/gift/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "gift",
++                "detect"
++              ]
++            },
++            "description": "Mandatory amount omitted -> MISSING_GIFT_AMOUNT warning"
++          },
++          "response": []
++        },
++        {
++          "name": "Gift_08_DonorPartialHint",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Gift_08\",\n  \"country_region\": \"EnglandAndWales\",\n  \"gift_hints\": {\n    \"amount\": 4000,\n    \"expected_date\": \"2024-07-01\",\n    \"donor_name\": \"PATEL FAMILY\"\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-07-01\",\n      \"description\": \"GIFT FROM R PATEL\",\n      \"credit_amount\": \"4000\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/gift/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "gift",
++                "detect"
++              ]
++            },
++            "description": "Donor partial-token hint -> high floor"
++          },
++          "response": []
++        },
++        {
++          "name": "Gift_09_VoucherNegative",
++          "event": [
++            {
++              "listen": "test",
++              "script": {
++                "type": "text/javascript",
++                "exec": [
++                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
++                  "var j = pm.response.json();",
++                  "pm.test('envelope ok=true', function () { pm.expect(j.ok).to.eql(true); });",
++                  "var r = j.result || {};",
++                  "var sets = r.candidate_sets || [];",
++                  "console.log(pm.info.requestName + '  -> sets=' + sets.length + '  ' +",
++                  "  sets.map(function(c){return c.candidate_type+':'+c.confidence_band+'('+(c.confidence||0).toFixed(3)+')';}).join(', ') +",
++                  "  ((r.warnings && r.warnings.length) ? '  warnings=' + r.warnings.map(function(w){return w.code;}).join('|') : ''));"
++                ]
++              }
++            }
++          ],
++          "request": {
++            "method": "POST",
++            "header": [
++              {
++                "key": "Content-Type",
++                "value": "application/json"
++              }
++            ],
++            "body": {
++              "mode": "raw",
++              "raw": "{\n  \"analysis_id\": \"Gift_09\",\n  \"country_region\": \"EnglandAndWales\",\n  \"gift_hints\": {\n    \"amount\": 50,\n    \"expected_date\": \"2024-03-10\"\n  },\n  \"transactions\": [\n    {\n      \"id\": \"t1\",\n      \"date\": \"2024-03-10\",\n      \"description\": \"GIFT CARD REFUND\",\n      \"credit_amount\": \"50\",\n      \"debit_amount\": 0\n    },\n    {\n      \"id\": \"t2\",\n      \"date\": \"2024-03-10\",\n      \"description\": \"GIFT VOUCHER CASHBACK\",\n      \"credit_amount\": \"50\",\n      \"debit_amount\": 0\n    }\n  ]\n}",
++              "options": {
++                "raw": {
++                  "language": "json"
++                }
++              }
++            },
++            "url": {
++              "raw": "{{baseUrl}}/api/v1/gift/detect",
++              "host": [
++                "{{baseUrl}}"
++              ],
++              "path": [
++                "api",
++                "v1",
++                "gift",
++                "detect"
++              ]
++            },
++            "description": "Gift voucher/card negative keyword -> excluded"
++          },
++          "response": []
++        }
++      ]
++    }
++  ],
++  "variable": [
++    {
++      "key": "baseUrl",
++      "value": "http://127.0.0.1:8080"
++    }
++  ]
++}
+\ No newline at end of file
 diff --color -ruN components-empty-1/SETUP-LINUX.md table-extractor-patch/SETUP-LINUX.md
 --- components-empty-1/SETUP-LINUX.md	1970-01-01 05:30:00
 +++ table-extractor-patch/SETUP-LINUX.md	2026-07-01 12:13:57
