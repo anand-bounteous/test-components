@@ -1,0 +1,3860 @@
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/.gitignore rule-engine/.gitignore
+--- components-empty-1/.gitignore	1970-01-01 05:30:00
++++ rule-engine/.gitignore	2026-07-21 19:08:29
+@@ -0,0 +1,44 @@
++# ---- Python ----
++# Build / packaging artifacts
++*.egg-info/
++build/
++dist/
++*.egg
++pip-wheel-metadata/
++
++# Byte-compiled / cache
++__pycache__/
++*.py[cod]
++*$py.class
++.pytest_cache/
++.mypy_cache/
++.ruff_cache/
++.coverage
++htmlcov/
++
++# Virtual environments
++.venv/
++venv/
++env/
++
++# ---- Node / Next.js (ui/) ----
++node_modules/
++.next/
++out/
++next-env.d.ts
++*.tsbuildinfo
++npm-debug.log*
++yarn-debug.log*
++yarn-error.log*
++
++# ---- Environment / secrets ----
++.env
++.env.*
++!.env.example
++
++# ---- Editor / OS ----
++.DS_Store
++Thumbs.db
++.idea/
++.vscode/
++*.swp
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/README.md rule-engine/README.md
+--- components-empty-1/README.md	1970-01-01 05:30:00
++++ rule-engine/README.md	2026-07-22 11:57:38
+@@ -0,0 +1,205 @@
++# Rule Engine
++
++A small, dependency-free Python engine that evaluates a **tree of rules**
++(nested `AND`/`OR`/`NOT` groups + leaf conditions) against input data coming
++from **document extraction fields** and **application data fields**.
++
++## Layout
++
++```
++rule-engine/
++├── pyproject.toml           # packaging metadata + console scripts
++├── src/rule_engine/         # the installable library
++│   ├── __init__.py          # public API
++│   ├── operators.py         # operator registry (not_empty, equals, before, ...)
++│   ├── context.py           # resolves operand values from input data
++│   ├── engine.py            # recursive tree evaluation + evaluation modes
++│   ├── result.py            # RuleResult / EvaluationReport (+ executed_rules)
++│   ├── repository.py        # rule sets indexed by exception_code
++│   ├── service.py           # RuleEngineService — the facade the app calls
++│   └── cli.py               # console entry points
++├── rules/                   # rule set definitions (one per exception code)
++├── data/                    # sample payloads / inputs
++├── main.py                  # shim -> rule-engine-single
++└── run_service.py           # shim -> rule-engine
++```
++
++## Setup on Windows
++
++Prerequisites: **Python 3.12.0** and **Node 20.9** (only needed for the UI).
++
++- Python — https://www.python.org/downloads/release/python-3120/
++  (during install, tick **"Add python.exe to PATH"**).
++- Node — https://nodejs.org/download/release/v20.9.0/ (or `nvm-windows`).
++
++### Backend (rule engine + REST API)
++
++Open **PowerShell** in the project root (`rule-engine\`) and run:
++
++```powershell
++# 1. Confirm the right Python
++py -3.12 --version                 # -> Python 3.12.0
++
++# 2. Create and activate a virtual environment
++py -3.12 -m venv .venv
++.\.venv\Scripts\Activate.ps1       # prompt now shows (.venv)
++
++# 3. Install the package with the API extra
++python -m pip install --upgrade pip
++python -m pip install -e ".[api]"
++
++# 4. Start the API
++rule-engine-api                    # http://127.0.0.1:8000  (docs at /docs)
++```
++
++> If activation is blocked with a script-execution error, run once:
++> `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` then retry step 2.
++> On **cmd.exe** instead of PowerShell, activate with `.venv\Scripts\activate.bat`.
++
++Console commands available after install: `rule-engine`, `rule-engine-single`,
++`rule-engine-api`.
++
++### Frontend (analyst review UI)
++
++Open a **second** terminal in the project root and run:
++
++```powershell
++# 1. Confirm the right Node
++node --version                     # -> v20.9.x
++
++# 2. Install and start the UI (points at the API on :8000 via ui\.env.local)
++cd ui
++npm install
++npm run dev                        # http://localhost:3000
++```
++
++Keep the backend (`rule-engine-api`) running in the first terminal, then open
++http://localhost:3000, edit the payload, and click **Evaluate**.
++
++### macOS / Linux
++
++Same steps; the only differences are venv activation
++(`source .venv/bin/activate`) and setting env vars with `export` instead of the
++PowerShell/`set` syntax.
++
++## REST API
++
++```powershell
++# Windows (PowerShell): optional rules dir override, default is "rules"
++$env:RULE_ENGINE_RULES_DIR = "rules"
++rule-engine-api                      # serves on http://127.0.0.1:8000
++# or: uvicorn rule_engine.api.app:app --reload
++```
++
++```bash
++# macOS / Linux
++export RULE_ENGINE_RULES_DIR=rules
++rule-engine-api
++```
++
++| Method | Path         | Purpose                                   |
++|--------|--------------|-------------------------------------------|
++| GET    | `/health`    | Liveness + discovered rule sets           |
++| GET    | `/rule-sets` | List available exception codes            |
++| POST   | `/evaluate`  | Evaluate `{exception_codes, documents, application}` |
++
++Interactive docs (typed request/response schema for the UI) at `/docs`.
++
++Request/response models live in `src/rule_engine/api/models.py`. The response
++gives the UI: an overall `decision`, per-code `summary` counts (for badges),
++`blocking_failures`, a flat `executed_rules` list (for tables), and a nested
++`result_tree` (for the AND/OR hierarchy).
++
++## Run
++
++```bash
++# Service: a request payload ({exception_codes, documents, application})
++rule-engine data/request_payload.json
++rule-engine data/request_payload.json --json
++
++# Single rule set against a single input file
++rule-engine-single rules/SOF002_VERIFICATION.json data/sample_input.json
++
++# Same, without installing (source-checkout shims)
++python3 run_service.py data/request_payload.json
++python3 main.py rules/SOF002_VERIFICATION.json data/sample_input.json
++```
++
++## Use as a library
++
++```python
++from rule_engine import RuleEngineService
++
++service = RuleEngineService.from_directory("rules")
++result = service.evaluate(
++    exception_codes=["SOF002"],
++    documents={"INVOICE": {"counterparty_name": "Acme", ...}},
++    application={"currency": "GBP", ...},
++)
++
++result.decision                              # overall pass/fail
++result.reports["SOF002"].decision            # per-code decision
++result.reports["SOF002"].executed_rules      # audit trail of every rule run
++result.to_dict()                             # fully serialisable payload
++```
++
++## Core concepts
++
++### Rule tree
++A node is either a **group** or a **leaf**.
++
++- **Group**: has `logical_operator` (`AND` / `OR` / `NOT`) and a nested `rules` list.
++- **Leaf**: has an `operator`, a `left_operand`, an optional `right_operand`,
++  a `severity` and a `failure_reason`.
++
++### Operands & sources
++Each operand declares a `source`; the engine resolves it to a value:
++
++| source        | resolves from                                  |
++|---------------|------------------------------------------------|
++| `STATIC`      | the literal `value` in the operand             |
++| `DOCUMENT`    | `documents[document_type][field]`              |
++| `APPLICATION` | `application[field]`                           |
++
++Missing document/application fields resolve to `None` (treated as empty) so a
++missing value simply fails a `not_empty` check instead of crashing.
++
++### Operators
++`not_empty`, `is_empty`, `equals`, `not_equals`, `contains`, `not_contains`,
++`starts_with`, `ends_with`, `greater_than`, `less_than`,
++`greater_than_or_equal`, `less_than_or_equal`, `before`, `after`.
++
++`is_empty` / `not_empty` are unary — they ignore the right operand.
++Add your own with the `@operator("name")` decorator in `operators.py`.
++
++### Evaluation modes
++The tree produces a pure boolean (`logical_passed`), but the final `decision`
++depends on `evaluation_mode`:
++
++- **`ALL_CRITICAL_MUST_PASS`** — passes as long as no `CRITICAL` leaf failed;
++  lower-severity failures are recorded as warnings but do not block.
++- **`STRICT`** — the whole boolean tree must be `True`.
++
++Add modes in `EVALUATION_MODES` in `engine.py`.
++
++## Low-level API (single rule set)
++
++For running one rule-set dict directly, bypassing the repository/service:
++
++```python
++from rule_engine import RuleEngine, EvaluationContext
++import json
++
++rules = json.load(open("rules/SOF002_VERIFICATION.json"))
++ctx = EvaluationContext(
++    documents={"INVOICE": {"counterparty_name": "Acme", "counterparty_address": ""}},
++    application={"requested_amount": 15000},
++)
++report = RuleEngine(rules).evaluate(ctx)
++
++print(report.decision)            # final pass/fail (after evaluation_mode)
++print(report.logical_passed)      # raw boolean of the whole tree
++print(report.blocking_failures)   # leaves that caused the decision to FAIL
++print(report.executed_rules)      # audit trail of every rule that ran
++print(report.to_dict())           # full serialisable report
++```
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/data/all_operators_input.json rule-engine/data/all_operators_input.json
+--- components-empty-1/data/all_operators_input.json	1970-01-01 05:30:00
++++ rule-engine/data/all_operators_input.json	2026-07-21 12:21:37
+@@ -0,0 +1,36 @@
++{
++  "documents": {
++    "INVOICE": {
++      "counterparty_name": "Acme Trading Ltd",
++      "counterparty_address": "1 High Street, London",
++      "invoice_number": "INV-2024-0007",
++      "invoice_amount": 15000,
++      "invoice_date": "2024-05-10",
++      "currency": "GBP",
++      "status": "ISSUED",
++      "notes": "sdfsdfsdf",
++      "iban": "GB29NWBK60161331926819"
++    },
++    "CONTRACT": {
++      "contract_name": "Master Services Agreement",
++      "contract_address": "1 High Street, London",
++      "contract_value": 20000,
++      "start_date": "2024-01-01",
++      "end_date": "2025-12-31",
++      "reference": "CON-ACME-01"
++    }
++  },
++  "application": {
++    "applicant_name": "Acme Trading Ltd",
++    "requested_amount": 15000,
++    "currency": "GBP",
++    "customer_since": "2019-03-01",
++    "risk_score": 42,
++    "max_allowed_amount": 50000,
++    "min_amount": 1000,
++    "kyc_verified": true,
++    "sanction_hit": false,
++    "country": "GB",
++    "blacklisted_term": "fraud"
++  }
++}
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/data/request_payload.json rule-engine/data/request_payload.json
+--- components-empty-1/data/request_payload.json	1970-01-01 05:30:00
++++ rule-engine/data/request_payload.json	2026-07-21 12:26:16
+@@ -0,0 +1,37 @@
++{
++  "exception_codes": ["SOF002", "DEMO001"],
++  "documents": {
++    "INVOICE": {
++      "counterparty_name": "ACME Trading Ltd",
++      "counterparty_address": "1 High Street, London",
++      "invoice_number": "INV-2024-0007",
++      "invoice_amount": 15000,
++      "invoice_date": "2024-05-10",
++      "currency": "GBP",
++      "status": "ISSUED",
++      "notes": "dffkenkrf",
++      "iban": "GB29NWBK60161331926819"
++    },
++    "CONTRACT": {
++      "contract_name": "Master Services Agreement",
++      "contract_address": "1 High Street, London",
++      "contract_value": 20000,
++      "start_date": "2024-01-01",
++      "end_date": "2025-12-31",
++      "reference": "CON-ACME-01"
++    }
++  },
++  "application": {
++    "applicant_name": "Acme Trading Ltd",
++    "requested_amount": 15000,
++    "currency": "GBP",
++    "customer_since": "2019-03-01",
++    "risk_score": 42,
++    "max_allowed_amount": 50000,
++    "min_amount": 1000,
++    "kyc_verified": true,
++    "sanction_hit": false,
++    "country": "GB",
++    "blacklisted_term": "fraud"
++  }
++}
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/data/sample_input.json rule-engine/data/sample_input.json
+--- components-empty-1/data/sample_input.json	1970-01-01 05:30:00
++++ rule-engine/data/sample_input.json	2026-07-21 10:35:52
+@@ -0,0 +1,17 @@
++{
++  "documents": {
++    "INVOICE": {
++      "counterparty_name": "Acme Trading Ltd",
++      "counterparty_address": "1 High Street"
++    },
++    "CONTRACT": {
++      "contract_name": "Master Services Agreement",
++      "contract_address": "1 High Street, London"
++    }
++  },
++  "application": {
++    "requested_amount": 15000,
++    "currency": "GBP",
++    "customer_since": "2019-03-01"
++  }
++}
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/main.py rule-engine/main.py
+--- components-empty-1/main.py	1970-01-01 05:30:00
++++ rule-engine/main.py	2026-07-21 12:04:57
+@@ -0,0 +1,15 @@
++"""Thin shim so `python3 main.py ...` keeps working without install.
++
++Prefer the installed console command `rule-engine-single` after `pip install -e .`.
++"""
++
++import sys
++from pathlib import Path
++
++# Allow running from a source checkout without installing.
++sys.path.insert(0, str(Path(__file__).parent / "src"))
++
++from rule_engine.cli import single_main  # noqa: E402
++
++if __name__ == "__main__":
++    sys.exit(single_main())
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/prompt.md rule-engine/prompt.md
+--- components-empty-1/prompt.md	1970-01-01 05:30:00
++++ rule-engine/prompt.md	2026-07-21 12:52:50
+@@ -0,0 +1,100 @@
++A **checklist runner**. You define checks (**rules**), send in some data, and it
++tells you what passed, what failed, and whether the overall result is pass/fail.
++
++- A **rule** = one check, e.g. *"invoice counterparty name must not be empty"*.
++- Rules are grouped with **AND** ("all must pass") or **OR** ("any can pass").
++- Each rule has a **severity**. `CRITICAL` can block the result; lower ones that
++  fail are just **warnings**.
++- Data comes from **documents** (extracted fields) and **application** (entered
++  data).
++- You ask by **exception code** (e.g. `SOF002`); each code has its own rules.
++
++### Example
++
++Check: *invoice counterparty name must not be empty* (CRITICAL).
++
++```json
++{
++  "rule_id": "RULE001",
++  "operator": "not_empty",
++  "left_operand": { "source": "DOCUMENT", "document_type": "INVOICE", "field": "counterparty_name" },
++  "severity": "CRITICAL",
++  "failure_reason": "Counterparty name missing"
++}
++```
++
++Data sent in:
++
++```json
++{
++  "exception_codes": ["SOF002"],
++  "documents": { "INVOICE": { "counterparty_name": "Acme Trading Ltd" } },
++  "application": {}
++}
++```
++
++Result: name is present → **PASS**. If it were empty or missing → **FAIL**
++(critical), with reason `Counterparty name missing (INVOICE.counterparty_name='')`.
++
++To compare two fields, point the operands at different sources — e.g.
++`equals` with left = `DOCUMENT INVOICE.invoice_amount` and right =
++`APPLICATION requested_amount`.
++
++---
++
++## Prompt
++
++Build a **dependency-free Python library** `rule-engine` that runs a tree of
++rules against document and application data.
++
++**Rules (JSON).** A file has `rule_set_id`, `exception_code`, `evaluation_mode`,
++and `rules`. A node is either a **group** (`logical_operator` AND/OR/NOT +
++nested `rules`) or a **leaf** (`operator`, `left_operand`, `right_operand`,
++`severity`, `failure_reason`). IDs are `RULE001`, `RULE002`, … in order.
++
++**Operands.** Each has a `source`: `STATIC` (literal `value`), `DOCUMENT`
++(`documents[document_type][field]`), or `APPLICATION` (`application[field]`).
++Missing fields resolve to `None` (never crash).
++
++**Operators** (registry-based, easy to add): `not_empty`, `is_empty`, `equals`,
++`not_equals`, `contains`, `not_contains`, `starts_with`, `ends_with`,
++`greater_than`, `less_than`, `greater_than_or_equal`, `less_than_or_equal`,
++`before`, `after`. `is_empty`/`not_empty` are unary.
++
++**Normalization.** String compares trim whitespace + ignore case. Date compares
++(`before`/`after`) parse many formats (ISO first, then common ones; numeric
++dates are day-first/UK). Keep the original values in output — normalize only for
++the comparison.
++
++**Two results.** `logical_passed` = raw true/false of the whole tree.
++`decision` = verdict after `evaluation_mode`:
++- `ALL_CRITICAL_MUST_PASS` — fails only if a CRITICAL check blocks; others are
++  warnings.
++- `STRICT` — the whole tree must be true.
++
++Decision is **context-aware**: a failing CRITICAL leaf only blocks if it truly
++causes the failure (not if an OR sibling passes or a NOT rescues it). Report
++`blocking_failures` = the leaves actually responsible.
++
++**Output.** Per rule set: `decision`, `logical_passed`, `blocking_failures`, and
++`executed_rules` (flat list — each with rule_id, description, operator,
++severity, left/right operand location + value, passed, outcome
++[PASS/FAIL/WARN/ERROR], reason). Reasons name the operand + value, e.g.
++`(INVOICE.currency='USD' vs application.currency='GBP')`.
++
++**Repository + service.** `RuleRepository.from_directory(dir)` indexes rule sets
++by `exception_code`. `RuleEngineService.evaluate(exception_codes, documents,
++application)` runs the matching sets and returns per-code results + an overall
++`decision` + `unknown_codes`.
++
++**Packaging.** `src/` layout, `pyproject.toml`, version `0.1.0`, zero core deps.
++CLIs: `rule-engine` (payload), `rule-engine-single` (one file). Add `.gitignore`.
++
++**REST API (optional `[api]` extra: fastapi/uvicorn/pydantic).** Sub-package
++`rule_engine.api` with `POST /evaluate`, `GET /rule-sets`, `GET /health`, Swagger
++at `/docs`. Request = `{exception_codes, documents, application}`. Response =
++overall `decision`, `unknown_codes`, and per code a `summary` (counts),
++`blocking_failures`, `executed_rules`, and nested `result_tree`.
++
++**Deliverables.** The package, sample rules in `rules/` (a SOF002 set + a demo
++using all operators), sample inputs in `data/`, and a `README.md`.
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/pyproject.toml rule-engine/pyproject.toml
+--- components-empty-1/pyproject.toml	1970-01-01 05:30:00
++++ rule-engine/pyproject.toml	2026-07-21 12:30:55
+@@ -0,0 +1,25 @@
++[build-system]
++requires = ["setuptools>=61.0"]
++build-backend = "setuptools.build_meta"
++
++[project]
++name = "rule-engine"
++version = "0.1.0"
++description = "A small, dependency-free rule engine for evaluating rule trees against document and application data."
++readme = "README.md"
++requires-python = ">=3.8"
++license = { text = "Proprietary" }
++authors = [{ name = "NatWest SOF" }]
++keywords = ["rules", "rule-engine", "sof", "verification"]
++dependencies = []
++
++[project.optional-dependencies]
++api = ["fastapi>=0.110", "uvicorn>=0.23", "pydantic>=2"]
++
++[project.scripts]
++rule-engine = "rule_engine.cli:service_main"
++rule-engine-single = "rule_engine.cli:single_main"
++rule-engine-api = "rule_engine.api.app:main"
++
++[tool.setuptools.packages.find]
++where = ["src"]
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/rules/ALL_OPERATORS_DEMO.json rule-engine/rules/ALL_OPERATORS_DEMO.json
+--- components-empty-1/rules/ALL_OPERATORS_DEMO.json	1970-01-01 05:30:00
++++ rule-engine/rules/ALL_OPERATORS_DEMO.json	2026-07-21 14:47:53
+@@ -0,0 +1,448 @@
++{
++  "rule_set_id": "ALL_OPERATORS_DEMO",
++  "exception_code": "DEMO001",
++  "version": "1.0",
++  "evaluation_mode": "ALL_CRITICAL_MUST_PASS",
++  "rules": [
++    {
++      "rule_id": "RULE001",
++      "description": "Root node",
++      "logical_operator": "AND",
++      "rules": [
++        {
++          "rule_id": "RULE002",
++          "description": "Presence checks (unary operators)",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "RULE003",
++              "description": "Counterparty name is present",
++              "operator": "not_empty",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "counterparty_name"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": true
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "Counterparty name missing"
++            },
++            {
++              "rule_id": "RULE004",
++              "description": "Notes field is intentionally empty",
++              "operator": "is_empty",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "notes"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": true
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "Notes should be empty for this exception"
++            }
++          ]
++        },
++        {
++          "rule_id": "RULE005",
++          "description": "Identity & string checks (document vs application)",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "RULE006",
++              "description": "Invoice currency equals application currency",
++              "operator": "equals",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "currency"
++              },
++              "right_operand": {
++                "source": "APPLICATION",
++                "field": "currency"
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "Invoice currency does not match application currency"
++            },
++            {
++              "rule_id": "RULE007",
++              "description": "Invoice amount equals requested amount",
++              "operator": "equals",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_amount"
++              },
++              "right_operand": {
++                "source": "APPLICATION",
++                "field": "requested_amount"
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "Invoice amount does not match requested amount"
++            },
++            {
++              "rule_id": "RULE008",
++              "description": "Counterparty name equals applicant name",
++              "operator": "equals",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "counterparty_name"
++              },
++              "right_operand": {
++                "source": "APPLICATION",
++                "field": "applicant_name"
++              },
++              "severity": "HIGH",
++              "failure_reason": "Counterparty name does not match applicant name"
++            },
++            {
++              "rule_id": "RULE009",
++              "description": "Invoice is not cancelled",
++              "operator": "not_equals",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "status"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "CANCELLED"
++              },
++              "severity": "HIGH",
++              "failure_reason": "Invoice status is CANCELLED"
++            },
++            {
++              "rule_id": "RULE010",
++              "description": "Counterparty name contains 'Acme'",
++              "operator": "contains",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "counterparty_name"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "Acme"
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "Counterparty name does not contain expected token"
++            },
++            {
++              "rule_id": "RULE011",
++              "description": "Counterparty name does not contain any blacklisted term",
++              "operator": "not_contains",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "counterparty_name"
++              },
++              "right_operand": {
++                "source": "APPLICATION",
++                "field": "blacklisted_term"
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "Counterparty name contains a blacklisted term"
++            },
++            {
++              "rule_id": "RULE012",
++              "description": "IBAN starts with country code GB",
++              "operator": "starts_with",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "iban"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "GB"
++              },
++              "severity": "HIGH",
++              "failure_reason": "IBAN is not a GB account"
++            },
++            {
++              "rule_id": "RULE013",
++              "description": "Invoice number ends with 0007",
++              "operator": "ends_with",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_number"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "0007"
++              },
++              "severity": "LOW",
++              "failure_reason": "Invoice number suffix unexpected"
++            }
++          ]
++        },
++        {
++          "rule_id": "RULE014",
++          "description": "Financial limits (numeric operators, OR group)",
++          "logical_operator": "OR",
++          "rules": [
++            {
++              "rule_id": "RULE015",
++              "description": "Max allowed amount is greater than invoice amount",
++              "operator": "greater_than",
++              "left_operand": {
++                "source": "APPLICATION",
++                "field": "max_allowed_amount"
++              },
++              "right_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_amount"
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "Invoice amount exceeds max allowed amount"
++            },
++            {
++              "rule_id": "RULE016",
++              "description": "Invoice amount is less than max allowed amount",
++              "operator": "less_than",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_amount"
++              },
++              "right_operand": {
++                "source": "APPLICATION",
++                "field": "max_allowed_amount"
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "Invoice amount not below max allowed amount"
++            },
++            {
++              "rule_id": "RULE017",
++              "description": "Invoice amount is at least the minimum amount",
++              "operator": "greater_than_or_equal",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_amount"
++              },
++              "right_operand": {
++                "source": "APPLICATION",
++                "field": "min_amount"
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "Invoice amount below minimum"
++            },
++            {
++              "rule_id": "RULE018",
++              "description": "Risk score is at most 50",
++              "operator": "less_than_or_equal",
++              "left_operand": {
++                "source": "APPLICATION",
++                "field": "risk_score"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": 50
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "Risk score too high"
++            }
++          ]
++        },
++        {
++          "rule_id": "RULE019",
++          "description": "Date checks (invoice date within contract window)",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "RULE020",
++              "description": "Invoice date is after contract start date",
++              "operator": "after",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_date"
++              },
++              "right_operand": {
++                "source": "DOCUMENT",
++                "document_type": "CONTRACT",
++                "field": "start_date"
++              },
++              "severity": "HIGH",
++              "failure_reason": "Invoice dated before contract start"
++            },
++            {
++              "rule_id": "RULE021",
++              "description": "Invoice date is before contract end date",
++              "operator": "before",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_date"
++              },
++              "right_operand": {
++                "source": "DOCUMENT",
++                "document_type": "CONTRACT",
++                "field": "end_date"
++              },
++              "severity": "HIGH",
++              "failure_reason": "Invoice dated after contract end"
++            }
++          ]
++        },
++        {
++          "rule_id": "RULE022",
++          "description": "Compliance checks (boolean + NOT group)",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "RULE023",
++              "description": "KYC has been verified",
++              "operator": "equals",
++              "left_operand": {
++                "source": "APPLICATION",
++                "field": "kyc_verified"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": true
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "KYC not verified"
++            },
++            {
++              "rule_id": "RULE024",
++              "description": "Sanction screening returned no hit",
++              "operator": "equals",
++              "left_operand": {
++                "source": "APPLICATION",
++                "field": "sanction_hit"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": false
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "Applicant flagged by sanction screening"
++            }
++          ]
++        },
++        {
++          "rule_id": "RULE025",
++          "description": "Contract document quality",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "RULE026",
++              "description": "Contract name is present",
++              "operator": "not_empty",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "CONTRACT",
++                "field": "contract_name"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": true
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "Contract name missing"
++            },
++            {
++              "rule_id": "RULE027",
++              "description": "Contract reference starts with CON-",
++              "operator": "starts_with",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "CONTRACT",
++                "field": "reference"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "CON-"
++              },
++              "severity": "LOW",
++              "failure_reason": "Contract reference has unexpected prefix"
++            },
++            {
++              "rule_id": "RULE028",
++              "description": "Contract value is at least the invoice amount",
++              "operator": "greater_than_or_equal",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "CONTRACT",
++                "field": "contract_value"
++              },
++              "right_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_amount"
++              },
++              "severity": "HIGH",
++              "failure_reason": "Contract value does not cover the invoice amount"
++            }
++          ]
++        },
++        {
++          "rule_id": "RULE029",
++          "description": "Address & relationship consistency",
++          "logical_operator": "OR",
++          "rules": [
++            {
++              "rule_id": "RULE030",
++              "description": "Invoice address matches contract address",
++              "operator": "equals",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "counterparty_address"
++              },
++              "right_operand": {
++                "source": "DOCUMENT",
++                "document_type": "CONTRACT",
++                "field": "contract_address"
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "Invoice and contract addresses differ"
++            },
++            {
++              "rule_id": "RULE031",
++              "description": "Applicant country is GB",
++              "operator": "equals",
++              "left_operand": {
++                "source": "APPLICATION",
++                "field": "country"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "GB"
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "Applicant is not domestic"
++            },
++            {
++              "rule_id": "RULE032",
++              "description": "Customer relationship predates the invoice",
++              "operator": "before",
++              "left_operand": {
++                "source": "APPLICATION",
++                "field": "customer_since"
++              },
++              "right_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_date"
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "Customer relationship starts after the invoice date"
++            }
++          ]
++        }
++      ]
++    }
++  ]
++}
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/rules/SOF002_VERIFICATION.json rule-engine/rules/SOF002_VERIFICATION.json
+--- components-empty-1/rules/SOF002_VERIFICATION.json	1970-01-01 05:30:00
++++ rule-engine/rules/SOF002_VERIFICATION.json	2026-07-21 19:05:50
+@@ -0,0 +1,93 @@
++{
++  "rule_set_id": "SOF002_VERIFICATION",
++  "exception_code": "SOF002",
++  "version": "1.0",
++  "evaluation_mode": "ALL_CRITICAL_MUST_PASS",
++  "rules": [
++    {
++      "rule_id": "RULE001",
++      "description": "Root node",
++      "logical_operator": "AND",
++      "rules": [
++        {
++          "rule_id": "RULE002",
++          "description": "Invoice Document Quality",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "RULE003",
++              "description": "Counterparty name check",
++              "operator": "sdbfjhsdb",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "counterparty_name"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": true
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "Counterparty name missing"
++            },
++            {
++              "rule_id": "RULE004",
++              "description": "Counterparty address check",
++              "operator": "not_empty",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "counterparty_address"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": true
++              },
++              "severity": "HIGH",
++              "failure_reason": "Counterparty address missing"
++            }
++          ]
++        },
++        {
++          "rule_id": "RULE005",
++          "description": "Contract Document Quality",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "RULE006",
++              "description": "Contract name check",
++              "operator": "not_empty",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "CONTRACT",
++                "field": "contract_name"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": true
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "Contract name missing"
++            },
++            {
++              "rule_id": "RULE007",
++              "description": "Contract address check",
++              "operator": "not_empty",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "CONTRACT",
++                "field": "contract_address"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": true
++              },
++              "severity": "HIGH",
++              "failure_reason": "Contract address missing"
++            }
++          ]
++        }
++      ]
++    }
++  ]
++}
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/rules/SOF005_VERIFICATION.json rule-engine/rules/SOF005_VERIFICATION.json
+--- components-empty-1/rules/SOF005_VERIFICATION.json	1970-01-01 05:30:00
++++ rule-engine/rules/SOF005_VERIFICATION.json	2026-07-21 12:15:08
+@@ -0,0 +1,47 @@
++{
++  "rule_set_id": "SOF005_VERIFICATION",
++  "exception_code": "SOF005",
++  "version": "1.0",
++  "evaluation_mode": "ALL_CRITICAL_MUST_PASS",
++  "rules": [
++    {
++      "rule_id": "RULE001",
++      "description": "Root node",
++      "logical_operator": "AND",
++      "rules": [
++        {
++          "rule_id": "RULE002",
++          "description": "Invoice amount matches requested amount",
++          "operator": "equals",
++          "left_operand": {
++            "source": "DOCUMENT",
++            "document_type": "INVOICE",
++            "field": "invoice_amount"
++          },
++          "right_operand": {
++            "source": "APPLICATION",
++            "field": "requested_amount"
++          },
++          "severity": "CRITICAL",
++          "failure_reason": "Invoice amount does not match requested amount"
++        },
++        {
++          "rule_id": "RULE003",
++          "description": "Invoice amount within approved limit",
++          "operator": "less_than_or_equal",
++          "left_operand": {
++            "source": "DOCUMENT",
++            "document_type": "INVOICE",
++            "field": "invoice_amount"
++          },
++          "right_operand": {
++            "source": "APPLICATION",
++            "field": "max_allowed_amount"
++          },
++          "severity": "HIGH",
++          "failure_reason": "Invoice amount exceeds approved limit"
++        }
++      ]
++    }
++  ]
++}
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/run_service.py rule-engine/run_service.py
+--- components-empty-1/run_service.py	1970-01-01 05:30:00
++++ rule-engine/run_service.py	2026-07-21 12:04:48
+@@ -0,0 +1,15 @@
++"""Thin shim so `python3 run_service.py ...` keeps working without install.
++
++Prefer the installed console command `rule-engine` after `pip install -e .`.
++"""
++
++import sys
++from pathlib import Path
++
++# Allow running from a source checkout without installing.
++sys.path.insert(0, str(Path(__file__).parent / "src"))
++
++from rule_engine.cli import service_main  # noqa: E402
++
++if __name__ == "__main__":
++    sys.exit(service_main())
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/__init__.py rule-engine/src/rule_engine/__init__.py
+--- components-empty-1/src/rule_engine/__init__.py	1970-01-01 05:30:00
++++ rule-engine/src/rule_engine/__init__.py	2026-07-21 12:05:02
+@@ -0,0 +1,24 @@
++"""A small, dependency-free rule engine for evaluating rule trees.
++
++Public API:
++    from rule_engine import RuleEngine, EvaluationContext
++"""
++
++__version__ = "0.1.0"
++
++from .engine import RuleEngine
++from .context import EvaluationContext
++from .result import RuleResult, EvaluationReport
++from .repository import RuleRepository, UnknownExceptionCode
++from .service import RuleEngineService, BatchResult
++
++__all__ = [
++    "RuleEngineService",
++    "BatchResult",
++    "RuleRepository",
++    "UnknownExceptionCode",
++    "RuleEngine",
++    "EvaluationContext",
++    "RuleResult",
++    "EvaluationReport",
++]
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/api/__init__.py rule-engine/src/rule_engine/api/__init__.py
+--- components-empty-1/src/rule_engine/api/__init__.py	1970-01-01 05:30:00
++++ rule-engine/src/rule_engine/api/__init__.py	2026-07-21 12:29:57
+@@ -0,0 +1,11 @@
++"""REST API layer for the rule engine (FastAPI + Pydantic).
++
++Install the API extra and run:
++
++    pip install -e ".[api]"
++    rule-engine-api            # or: uvicorn rule_engine.api.app:app --reload
++"""
++
++from .app import app, create_app
++
++__all__ = ["app", "create_app"]
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/api/app.py rule-engine/src/rule_engine/api/app.py
+--- components-empty-1/src/rule_engine/api/app.py	1970-01-01 05:30:00
++++ rule-engine/src/rule_engine/api/app.py	2026-07-21 15:55:19
+@@ -0,0 +1,118 @@
++"""FastAPI application exposing the rule engine as a REST service.
++
++Run:
++    export RULE_ENGINE_RULES_DIR=rules      # optional, defaults to "rules"
++    rule-engine-api                          # console script
++    # or
++    uvicorn rule_engine.api.app:app --reload
++
++Endpoints:
++    GET  /health           liveness probe
++    GET  /rule-sets        list available exception codes / rule sets
++    POST /evaluate         evaluate a request payload
++Interactive docs at /docs (Swagger) and /redoc.
++"""
++
++from __future__ import annotations
++
++import os
++
++from fastapi import FastAPI, HTTPException
++from fastapi.middleware.cors import CORSMiddleware
++
++from ..service import RuleEngineService
++from .builders import build_response
++from .models import (
++    EvaluationRequest,
++    EvaluationResponse,
++    RuleSetInfo,
++    RuleSetsResponse,
++)
++
++
++def _count_rules(rule_set: dict) -> int:
++    n = 0
++    def walk(node):
++        nonlocal n
++        if "rules" in node:
++            for c in node["rules"]:
++                walk(c)
++        else:
++            n += 1
++    for r in rule_set.get("rules", []):
++        walk(r)
++    return n
++
++
++def create_app(rules_dir: str | None = None) -> FastAPI:
++    rules_dir = rules_dir or os.environ.get("RULE_ENGINE_RULES_DIR", "rules")
++    service = RuleEngineService.from_directory(rules_dir)
++
++    app = FastAPI(
++        title="Rule Engine API",
++        version="0.1.0",
++        description="Evaluate SOF exception rule sets against document and "
++                    "application data.",
++    )
++    # Keep a handle so tests / other code can reach the service.
++    app.state.service = service
++
++    # CORS so a browser UI (e.g. Next.js on :3000) can call the API.
++    # Set RULE_ENGINE_CORS_ORIGINS="https://app.example.com,https://..." to lock
++    # down in production; defaults to "*" for local development.
++    origins = os.environ.get("RULE_ENGINE_CORS_ORIGINS", "*")
++    app.add_middleware(
++        CORSMiddleware,
++        allow_origins=["*"] if origins == "*" else
++        [o.strip() for o in origins.split(",") if o.strip()],
++        allow_methods=["*"],
++        allow_headers=["*"],
++    )
++
++    @app.get("/health")
++    def health() -> dict:
++        return {"status": "ok", "rule_sets": service.repository.codes()}
++
++    @app.get("/rule-sets", response_model=RuleSetsResponse)
++    def rule_sets() -> RuleSetsResponse:
++        infos = []
++        for code in service.repository.codes():
++            rs = service.repository.get(code)
++            infos.append(RuleSetInfo(
++                exception_code=code,
++                rule_set_id=rs.get("rule_set_id", ""),
++                evaluation_mode=rs.get("evaluation_mode", ""),
++                rule_count=_count_rules(rs),
++            ))
++        return RuleSetsResponse(rule_sets=infos)
++
++    @app.post("/evaluate", response_model=EvaluationResponse)
++    def evaluate(request: EvaluationRequest) -> EvaluationResponse:
++        if not request.exception_codes:
++            raise HTTPException(status_code=422,
++                                detail="exception_codes must not be empty")
++        batch = service.evaluate(
++            exception_codes=request.exception_codes,
++            documents=request.documents,
++            application=request.application,
++        )
++        return build_response(batch)
++
++    return app
++
++
++# Module-level app for `uvicorn rule_engine.api.app:app`
++app = create_app()
++
++
++def main() -> None:
++    """Console entry point: `rule-engine-api`."""
++    import uvicorn
++
++    host = os.environ.get("RULE_ENGINE_HOST", "127.0.0.1")
++    port = int(os.environ.get("RULE_ENGINE_PORT", "8000"))
++    uvicorn.run("rule_engine.api.app:app", host=host, port=port, reload=False)
++
++
++if __name__ == "__main__":
++    main()
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/api/builders.py rule-engine/src/rule_engine/api/builders.py
+--- components-empty-1/src/rule_engine/api/builders.py	1970-01-01 05:30:00
++++ rule-engine/src/rule_engine/api/builders.py	2026-07-21 19:04:19
+@@ -0,0 +1,90 @@
++"""Convert engine domain objects into the API response models."""
++
++from __future__ import annotations
++
++from typing import Set
++
++from ..result import EvaluationReport, RuleResult, describe_operand
++from ..service import BatchResult
++from .models import (
++    EvaluationResponse,
++    ExecutedRule,
++    Failure,
++    RuleNode,
++    RuleSetResult,
++    Summary,
++)
++
++
++def _leaf_outcome(leaf: RuleResult, blocking_ids: Set[int]) -> str:
++    if leaf.error is not None:
++        return "ERROR"
++    if leaf.passed:
++        return "PASS"
++    return "FAIL" if id(leaf) in blocking_ids else "WARN"
++
++
++def _build_node(node: RuleResult, blocking_ids: Set[int]) -> RuleNode:
++    if node.is_group:
++        group_outcome = "ERROR" if node.error else ("PASS" if node.passed else "FAIL")
++        return RuleNode(
++            rule_id=node.rule_id,
++            description=node.description,
++            passed=node.passed,
++            is_group=True,
++            outcome=group_outcome,
++            logical_operator=node.logical_operator,
++            reason=node.error,
++            children=[_build_node(c, blocking_ids) for c in node.children],
++        )
++    return RuleNode(
++        rule_id=node.rule_id,
++        description=node.description,
++        passed=node.passed,
++        is_group=False,
++        outcome=_leaf_outcome(node, blocking_ids),
++        operator=node.operator,
++        severity=node.severity,
++        left=describe_operand(node.left_operand),
++        left_value=node.left_value,
++        right=describe_operand(node.right_operand),
++        right_value=node.right_value,
++        reason=None if node.passed else node.detail(),
++    )
++
++
++def build_rule_set_result(code: str, report: EvaluationReport) -> RuleSetResult:
++    executed = [ExecutedRule(**row) for row in report.executed_rules]
++    summary = Summary(
++        total=len(executed),
++        passed=sum(1 for r in executed if r.outcome == "PASS"),
++        failed=sum(1 for r in executed if r.outcome == "FAIL"),
++        warnings=sum(1 for r in executed if r.outcome == "WARN"),
++        errors=sum(1 for r in executed if r.outcome == "ERROR"),
++    )
++    blocking_ids = {id(f) for f in report.blocking_failures}
++    return RuleSetResult(
++        exception_code=code,
++        rule_set_id=report.rule_set_id,
++        evaluation_mode=report.evaluation_mode,
++        logical_passed=report.logical_passed,
++        decision=report.decision,
++        summary=summary,
++        blocking_failures=[
++            Failure(rule_id=f.rule_id, severity=f.severity, reason=f.detail())
++            for f in report.blocking_failures
++        ],
++        executed_rules=executed,
++        result_tree=_build_node(report.root, blocking_ids),
++    )
++
++
++def build_response(batch: BatchResult) -> EvaluationResponse:
++    return EvaluationResponse(
++        decision=batch.decision,
++        unknown_codes=batch.unknown_codes,
++        results=[
++            build_rule_set_result(code, report)
++            for code, report in batch.reports.items()
++        ],
++    )
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/api/models.py rule-engine/src/rule_engine/api/models.py
+--- components-empty-1/src/rule_engine/api/models.py	1970-01-01 05:30:00
++++ rule-engine/src/rule_engine/api/models.py	2026-07-21 12:30:17
+@@ -0,0 +1,137 @@
++"""Pydantic request/response models — the typed contract for the UI.
++
++These mirror the engine's domain objects but are shaped for consumption by a
++front-end: a flat ``executed_rules`` list for tables, a ``summary`` for badges,
++and an optional ``result_tree`` for rendering the rule hierarchy.
++"""
++
++from __future__ import annotations
++
++from typing import Any, Dict, List, Literal, Optional
++
++from pydantic import BaseModel, Field
++
++
++Outcome = Literal["PASS", "FAIL", "WARN", "ERROR"]
++Severity = Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"]
++
++
++# ---------------------------------------------------------------------------
++# Request
++# ---------------------------------------------------------------------------
++class EvaluationRequest(BaseModel):
++    exception_codes: List[str] = Field(
++        ..., description="Exception codes to evaluate; selects the rule sets.",
++        examples=[["SOF002", "SOF005"]],
++    )
++    documents: Dict[str, Dict[str, Any]] = Field(
++        default_factory=dict,
++        description="Extracted document fields, keyed by document type.",
++        examples=[{"INVOICE": {"counterparty_name": "Acme Trading Ltd"}}],
++    )
++    application: Dict[str, Any] = Field(
++        default_factory=dict,
++        description="Application data fields (flat key/value bag).",
++        examples=[{"currency": "GBP", "requested_amount": 15000}],
++    )
++
++    model_config = {
++        "json_schema_extra": {
++            "examples": [{
++                "exception_codes": ["SOF002"],
++                "documents": {
++                    "INVOICE": {"counterparty_name": "Acme Trading Ltd",
++                                "counterparty_address": "1 High Street"},
++                    "CONTRACT": {"contract_name": "MSA",
++                                 "contract_address": "1 High Street"},
++                },
++                "application": {"currency": "GBP", "requested_amount": 15000},
++            }]
++        }
++    }
++
++
++# ---------------------------------------------------------------------------
++# Response
++# ---------------------------------------------------------------------------
++class ExecutedRule(BaseModel):
++    """One evaluated leaf condition — the row a UI table would render."""
++    rule_id: str
++    description: str
++    operator: Optional[str] = None
++    severity: Optional[Severity] = None
++    left: Optional[str] = Field(None, description="Left operand location, e.g. INVOICE.currency")
++    left_value: Any = Field(None, description="Resolved left value from the input")
++    right: Optional[str] = Field(None, description="Right operand location or static(...)")
++    right_value: Any = Field(None, description="Resolved right value")
++    passed: bool
++    outcome: Outcome = Field(..., description="PASS | FAIL (blocking) | WARN (non-blocking) | ERROR")
++    reason: Optional[str] = Field(None, description="Failure detail with operand values")
++
++
++class Failure(BaseModel):
++    rule_id: str
++    severity: Optional[Severity] = None
++    reason: Optional[str] = None
++
++
++class Summary(BaseModel):
++    """Counts for UI badges / progress bars."""
++    total: int
++    passed: int
++    failed: int = Field(..., description="Blocking failures")
++    warnings: int = Field(..., description="Non-blocking failures")
++    errors: int
++
++
++class RuleNode(BaseModel):
++    """A node in the rule tree — group (has children) or leaf. For UIs that
++    want to render the AND/OR hierarchy rather than a flat list."""
++    rule_id: str
++    description: str
++    passed: bool
++    is_group: bool
++    outcome: Outcome
++    logical_operator: Optional[str] = None
++    operator: Optional[str] = None
++    severity: Optional[Severity] = None
++    left: Optional[str] = None
++    left_value: Any = None
++    right: Optional[str] = None
++    right_value: Any = None
++    reason: Optional[str] = None
++    children: List["RuleNode"] = Field(default_factory=list)
++
++
++class RuleSetResult(BaseModel):
++    """Result for a single exception code / rule set."""
++    exception_code: str
++    rule_set_id: str
++    evaluation_mode: str
++    logical_passed: bool = Field(..., description="Raw boolean of the whole tree")
++    decision: bool = Field(..., description="Final verdict after applying evaluation_mode")
++    summary: Summary
++    blocking_failures: List[Failure]
++    executed_rules: List[ExecutedRule]
++    result_tree: RuleNode
++
++
++class EvaluationResponse(BaseModel):
++    """Top-level response for a batch of exception codes."""
++    decision: bool = Field(..., description="Overall PASS only if every code passed")
++    unknown_codes: List[str] = Field(
++        default_factory=list,
++        description="Requested codes with no matching rule set.",
++    )
++    results: List[RuleSetResult]
++
++
++class RuleSetInfo(BaseModel):
++    exception_code: str
++    rule_set_id: str
++    evaluation_mode: str
++    rule_count: int
++
++
++class RuleSetsResponse(BaseModel):
++    rule_sets: List[RuleSetInfo]
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/cli.py rule-engine/src/rule_engine/cli.py
+--- components-empty-1/src/rule_engine/cli.py	1970-01-01 05:30:00
++++ rule-engine/src/rule_engine/cli.py	2026-07-21 12:18:13
+@@ -0,0 +1,108 @@
++"""Command-line entry points for the rule engine.
++
++Installed as console scripts (see pyproject.toml):
++    rule-engine         -> service_main   (payload + rules dir)
++    rule-engine-single  -> single_main    (one rule set + one input file)
++"""
++
++import argparse
++import json
++import sys
++
++from .service import RuleEngineService
++from .engine import RuleEngine
++from .context import EvaluationContext
++
++
++def _load(path: str) -> dict:
++    with open(path, "r", encoding="utf-8") as fh:
++        return json.load(fh)
++
++
++# ---------------------------------------------------------------------------
++# rule-engine : run a request payload against a directory of rule sets
++# ---------------------------------------------------------------------------
++def service_main(argv=None) -> int:
++    parser = argparse.ArgumentParser(description="Run the rule engine service.")
++    parser.add_argument("payload", help="Request payload JSON file.")
++    parser.add_argument("--rules-dir", default="rules",
++                        help="Directory of rule set JSON files (default: rules).")
++    parser.add_argument("--json", action="store_true",
++                        help="Print the full result as JSON.")
++    args = parser.parse_args(argv)
++
++    payload = _load(args.payload)
++    service = RuleEngineService.from_directory(args.rules_dir)
++    result = service.evaluate(
++        exception_codes=payload.get("exception_codes", []),
++        documents=payload.get("documents", {}),
++        application=payload.get("application", {}),
++    )
++
++    if args.json:
++        print(json.dumps(result.to_dict(), indent=2, default=str))
++        return 0 if result.decision else 1
++
++    print(f"OVERALL DECISION: {'PASS' if result.decision else 'FAIL'}")
++    if result.unknown_codes:
++        print(f"Unknown exception codes (no rule set): {result.unknown_codes}")
++
++    for code, report in result.reports.items():
++        print(f"\n=== {code}  ({report.rule_set_id}) ===")
++        print(f"  Mode     : {report.evaluation_mode}")
++        print(f"  Logical  : {'PASS' if report.logical_passed else 'FAIL'}")
++        print(f"  Decision : {'PASS' if report.decision else 'FAIL'}")
++        print("  Rules executed:")
++        for r in report.executed_rules:
++            mark = {"PASS": "✓", "FAIL": "✗", "WARN": "!", "ERROR": "E"}[r["outcome"]]
++            print(f"    {mark} [{r['outcome']:<4}] {r['rule_id']} "
++                  f"({r['severity']}) — {r['description']}")
++            if r["reason"]:
++                print(f"          reason: {r['reason']}")
++
++    return 0 if result.decision else 1
++
++
++# ---------------------------------------------------------------------------
++# rule-engine-single : run one rule set file against one input file
++# ---------------------------------------------------------------------------
++def single_main(argv=None) -> int:
++    parser = argparse.ArgumentParser(description="Evaluate a single rule set.")
++    parser.add_argument("rules", help="Path to the rule set JSON file.")
++    parser.add_argument("input", help="Path to the input data JSON file.")
++    parser.add_argument("--json", action="store_true",
++                        help="Print the full report as JSON.")
++    args = parser.parse_args(argv)
++
++    engine = RuleEngine(_load(args.rules))
++    context = EvaluationContext.from_dict(_load(args.input))
++    report = engine.evaluate(context)
++
++    if args.json:
++        print(json.dumps(report.to_dict(), indent=2, default=str))
++        return 0 if report.decision else 1
++
++    print(f"Rule set : {report.rule_set_id} ({report.exception_code})")
++    print(f"Mode     : {report.evaluation_mode}")
++    print(f"Logical  : {'PASS' if report.logical_passed else 'FAIL'}")
++    print(f"Decision : {'PASS' if report.decision else 'FAIL'}")
++
++    if report.blocking_failures:
++        print("\nBlocking failures (caused the decision to FAIL):")
++        for f in report.blocking_failures:
++            print(f"  [✗ {f.severity}] {f.rule_id} {f.description}: {f.detail()}")
++
++    warnings = [f for f in report.all_failures if f not in report.blocking_failures]
++    if warnings:
++        print("\nWarnings (conditions not met, did not block):")
++        for f in warnings:
++            print(f"  [· {f.severity}] {f.rule_id} {f.description}: {f.detail()}")
++
++    if not report.all_failures:
++        print("\nNo failures.")
++
++    return 0 if report.decision else 1
++
++
++if __name__ == "__main__":
++    sys.exit(service_main())
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/context.py rule-engine/src/rule_engine/context.py
+--- components-empty-1/src/rule_engine/context.py	1970-01-01 05:30:00
++++ rule-engine/src/rule_engine/context.py	2026-07-22 11:20:38
+@@ -0,0 +1,91 @@
++"""Evaluation context: resolves operand values from the input data.
++
++An operand declares a ``source`` and the engine asks the context to resolve
++it into a concrete value:
++
++    STATIC       -> operand["value"]
++    DOCUMENT     -> documents[document_type][field]
++    APPLICATION  -> application[field]
++
++Missing values resolve to ``None`` (which presence operators treat as empty)
++rather than raising, so a missing field simply fails a ``not_empty`` check.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from typing import Any, Dict
++
++
++class OperandResolutionError(Exception):
++    """Raised when an operand is malformed (not merely missing data)."""
++
++
++@dataclass
++class EvaluationContext:
++    """Holds the input data the rules are evaluated against.
++
++    documents:   {document_type: {field: value}}
++                 e.g. {"INVOICE": {"counterparty_name": "Acme Ltd"}}
++    application: {field: value}
++                 flat bag of application-level fields.
++    """
++
++    documents: Dict[str, Dict[str, Any]] = field(default_factory=dict)
++    application: Dict[str, Any] = field(default_factory=dict)
++
++    def resolve(self, operand: Dict[str, Any]) -> Any:
++        """Return just the resolved value (None if missing)."""
++        return self.resolve_with_status(operand)[0]
++
++    def resolve_with_status(self, operand: Dict[str, Any]):
++        """Resolve an operand to ``(value, missing_note)``.
++
++        ``missing_note`` is None when the value was found, or a human-readable
++        explanation of what was missing (document type absent, or field absent
++        in the document / application data).
++        """
++        source = operand.get("source")
++
++        if source == "STATIC":
++            return operand.get("value"), None
++
++        if source == "DOCUMENT":
++            doc_type = operand.get("document_type")
++            field_name = operand.get("field")
++            if not doc_type or not field_name:
++                raise OperandResolutionError(
++                    f"DOCUMENT operand needs 'document_type' and 'field': {operand!r}"
++                )
++            if doc_type not in self.documents:
++                return None, f"document type '{doc_type}' not present in data"
++            doc = self.documents[doc_type]
++            if field_name not in doc:
++                return None, (
++                    f"field '{field_name}' not present in document '{doc_type}'"
++                )
++            return doc[field_name], None
++
++        if source == "APPLICATION":
++            field_name = operand.get("field")
++            if not field_name:
++                raise OperandResolutionError(
++                    f"APPLICATION operand needs 'field': {operand!r}"
++                )
++            if field_name not in self.application:
++                return None, (
++                    f"field '{field_name}' not present in application data"
++                )
++            return self.application[field_name], None
++
++        raise OperandResolutionError(
++            f"Unknown operand source {source!r}. "
++            f"Expected STATIC, DOCUMENT or APPLICATION."
++        )
++
++    @classmethod
++    def from_dict(cls, data: Dict[str, Any]) -> "EvaluationContext":
++        return cls(
++            documents=data.get("documents", {}),
++            application=data.get("application", {}),
++        )
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/engine.py rule-engine/src/rule_engine/engine.py
+--- components-empty-1/src/rule_engine/engine.py	1970-01-01 05:30:00
++++ rule-engine/src/rule_engine/engine.py	2026-07-22 11:51:21
+@@ -0,0 +1,209 @@
++"""The rule engine: recursively evaluates a rule tree against a context."""
++
++from __future__ import annotations
++
++from typing import Any, Callable, Dict
++
++from .context import EvaluationContext
++from .operators import get_operator, has_operator
++from .result import RuleResult, EvaluationReport, UNARY_OPERATORS
++
++
++# Evaluation modes decide the FINAL pass/fail from the result tree.
++# Each takes the root RuleResult and returns (decision, blocking_failures),
++# where blocking_failures are the leaves actually responsible for a FAIL.
++#
++# The evaluation is CONTEXT-AWARE: a leaf that evaluates False is only
++# "blocking" if its position in the AND/OR/NOT tree actually causes a
++# failure. A False leaf that a sibling OR branch or an enclosing NOT
++# rescues does not block.
++def _decision_all_critical(node: RuleResult):
++    """Block only when a CRITICAL condition is required-but-not-met.
++
++    Non-CRITICAL leaves are masked to 'pass' for the purposes of the
++    decision (they become warnings, not blockers). Returns
++    (satisfied: bool, blocking_leaves: list).
++    """
++    if node.is_group:
++        # A group that could not be evaluated (unknown logical operator) blocks.
++        if node.error is not None:
++            return False, []
++        child_results = [_decision_all_critical(c) for c in node.children]
++        op = node.logical_operator
++
++        if op == "OR":
++            satisfied = any(sat for sat, _ in child_results)
++            # If satisfied by some branch, nothing blocks. Otherwise every
++            # branch failed, so surface all their blockers.
++            blockers = [] if satisfied else [b for _, bl in child_results for b in bl]
++            return satisfied, blockers
++
++        if op == "NOT":
++            sat, _ = child_results[0] if child_results else (True, [])
++            # NOT passes when the child is NOT satisfied; there is no
++            # single leaf to blame when it fails, so report none.
++            return (not sat), []
++
++        # AND (default): all children must be satisfied; collect every blocker.
++        satisfied = all(sat for sat, _ in child_results)
++        blockers = [b for _, bl in child_results for b in bl]
++        return satisfied, blockers
++
++    # A leaf that could not be evaluated (unknown operator, bad data) always
++    # blocks — you can't pass a check that never ran, regardless of severity.
++    if node.error is not None:
++        return False, [node]
++    # Otherwise only CRITICAL leaves can block; others are masked to pass.
++    if node.severity == "CRITICAL":
++        return node.passed, ([] if node.passed else [node])
++    return True, []
++
++
++def _mode_all_critical_must_pass(root: RuleResult):
++    return _decision_all_critical(root)
++
++
++def _mode_strict(root: RuleResult):
++    """The whole boolean tree must evaluate to True; any False leaf blocks."""
++    return root.passed, root.failed_leaves()
++
++
++EVALUATION_MODES: Dict[str, Callable[[RuleResult], object]] = {
++    "ALL_CRITICAL_MUST_PASS": _mode_all_critical_must_pass,
++    "STRICT": _mode_strict,
++}
++
++
++class RuleEngine:
++    def __init__(self, rule_set: Dict[str, Any]):
++        self.rule_set = rule_set
++        self.rule_set_id = rule_set.get("rule_set_id", "")
++        self.exception_code = rule_set.get("exception_code", "")
++        self.evaluation_mode = rule_set.get("evaluation_mode", "STRICT")
++
++        rules = rule_set.get("rules", [])
++        if len(rules) != 1:
++            raise ValueError(
++                "Expected exactly one root rule under 'rules'; "
++                f"got {len(rules)}."
++            )
++        self.root_node = rules[0]
++
++    # -- public API --------------------------------------------------------
++    def evaluate(self, context: EvaluationContext) -> EvaluationReport:
++        root_result = self._evaluate_node(self.root_node, context)
++
++        mode_fn = EVALUATION_MODES.get(self.evaluation_mode)
++        if mode_fn is None:
++            raise ValueError(
++                f"Unknown evaluation_mode '{self.evaluation_mode}'. "
++                f"Known: {', '.join(sorted(EVALUATION_MODES))}"
++            )
++
++        decision, blocking_failures = mode_fn(root_result)
++
++        return EvaluationReport(
++            rule_set_id=self.rule_set_id,
++            exception_code=self.exception_code,
++            evaluation_mode=self.evaluation_mode,
++            logical_passed=root_result.passed,
++            decision=decision,
++            blocking_failures=blocking_failures,
++            root=root_result,
++        )
++
++    # -- internals ---------------------------------------------------------
++    def _evaluate_node(
++        self, node: Dict[str, Any], context: EvaluationContext
++    ) -> RuleResult:
++        # A node is a GROUP if it carries a logical_operator + nested rules,
++        # otherwise it is a LEAF with an operator + operands.
++        if "logical_operator" in node and "rules" in node:
++            return self._evaluate_group(node, context)
++        return self._evaluate_leaf(node, context)
++
++    def _evaluate_group(
++        self, node: Dict[str, Any], context: EvaluationContext
++    ) -> RuleResult:
++        logical_operator = node.get("logical_operator", "AND").upper()
++        children = [self._evaluate_node(child, context)
++                    for child in node.get("rules", [])]
++
++        error = None
++        if logical_operator == "AND":
++            passed = all(c.passed for c in children)
++        elif logical_operator == "OR":
++            passed = any(c.passed for c in children)
++        elif logical_operator == "NOT":
++            # NOT negates its (single) child.
++            passed = not children[0].passed if children else True
++        else:
++            passed = False
++            error = (
++                f"Unknown logical_operator '{logical_operator}' — group could "
++                f"not be evaluated. Expected AND, OR or NOT."
++            )
++
++        return RuleResult(
++            rule_id=node.get("rule_id", ""),
++            description=node.get("description", ""),
++            passed=passed,
++            is_group=True,
++            logical_operator=logical_operator,
++            children=children,
++            error=error,
++        )
++
++    def _evaluate_leaf(
++        self, node: Dict[str, Any], context: EvaluationContext
++    ) -> RuleResult:
++        operator_name = node["operator"]
++        result = RuleResult(
++            rule_id=node.get("rule_id", ""),
++            description=node.get("description", ""),
++            passed=False,
++            is_group=False,
++            operator=operator_name,
++            severity=node.get("severity"),
++            failure_reason=node.get("failure_reason"),
++            left_operand=node.get("left_operand"),
++            right_operand=node.get("right_operand"),
++        )
++
++        # Unknown operator = a rule authoring error. Fail loudly with a clear
++        # reason; the decision logic treats any errored leaf as blocking.
++        if not has_operator(operator_name):
++            result.passed = False
++            result.error = (
++                f"Unknown operator '{operator_name}' — rule could not be "
++                f"evaluated."
++            )
++            return result
++
++        try:
++            left, left_missing = context.resolve_with_status(node["left_operand"])
++            # right_operand is optional for unary operators.
++            if "right_operand" in node:
++                right, right_missing = context.resolve_with_status(
++                    node["right_operand"])
++            else:
++                right, right_missing = None, None
++            result.left_value = left
++            result.right_value = right
++            result.left_missing = left_missing
++            result.right_missing = right_missing
++
++            # For comparison operators, a missing operand can't be compared and
++            # must not silently pass (e.g. equals(None, None) -> True). Unary
++            # presence operators (is_empty/not_empty) handle None themselves.
++            if operator_name not in UNARY_OPERATORS and (left_missing or right_missing):
++                result.passed = False
++                return result
++
++            op_fn = get_operator(operator_name)
++            result.passed = op_fn(left, right)
++        except Exception as exc:  # noqa: BLE001 - record, don't crash the run
++            result.passed = False
++            result.error = f"{type(exc).__name__}: {exc}"
++
++        return result
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/operators.py rule-engine/src/rule_engine/operators.py
+--- components-empty-1/src/rule_engine/operators.py	1970-01-01 05:30:00
++++ rule-engine/src/rule_engine/operators.py	2026-07-22 11:51:29
+@@ -0,0 +1,222 @@
++"""Operator registry.
++
++Each operator is a function ``(left, right) -> bool``. Unary operators
++(``is_empty`` / ``not_empty``) simply ignore the ``right`` argument.
++
++Register new operators with the ``@operator`` decorator so the engine can
++look them up by name.
++"""
++
++from __future__ import annotations
++
++from datetime import datetime, date
++from typing import Any, Callable, Dict
++
++
++OperatorFn = Callable[[Any, Any], bool]
++
++_REGISTRY: Dict[str, OperatorFn] = {}
++
++
++def operator(name: str) -> Callable[[OperatorFn], OperatorFn]:
++    """Decorator that registers an operator function under ``name``."""
++
++    def _register(fn: OperatorFn) -> OperatorFn:
++        _REGISTRY[name] = fn
++        return fn
++
++    return _register
++
++
++def has_operator(name: str) -> bool:
++    return name in _REGISTRY
++
++
++def get_operator(name: str) -> OperatorFn:
++    try:
++        return _REGISTRY[name]
++    except KeyError:
++        raise ValueError(
++            f"Unknown operator '{name}'. Known operators: "
++            f"{', '.join(sorted(_REGISTRY))}"
++        )
++
++
++# --------------------------------------------------------------------------
++# Helpers
++# --------------------------------------------------------------------------
++def _norm(value: Any) -> Any:
++    """Normalise a value for string comparison: strings are trimmed and
++    case-folded; non-string values are returned unchanged (so numbers,
++    booleans and dates keep their exact semantics)."""
++    if isinstance(value, str):
++        return value.strip().casefold()
++    return value
++
++
++def _is_empty(value: Any) -> bool:
++    """Treat None, empty string (after strip) and empty collections as empty."""
++    if value is None:
++        return True
++    if isinstance(value, str):
++        return value.strip() == ""
++    if isinstance(value, (list, tuple, dict, set)):
++        return len(value) == 0
++    return False
++
++
++def _to_number(value: Any) -> float:
++    return float(value)
++
++
++# Accepted date/datetime string formats, tried in order. Slash/dot/dash
++# numeric dates are read DAY-FIRST (UK convention): 03/04/2024 -> 3 April 2024.
++_DATE_FORMATS = (
++    "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y",   # 10/05/2024, 10-05-2024, 10.05.2024
++    "%Y/%m/%d",                            # 2024/05/10
++    "%d %b %Y", "%d %B %Y",                # 10 May 2024, 10 May 2024
++    "%b %d, %Y", "%B %d, %Y",              # May 10, 2024
++    "%d/%m/%y", "%d-%m-%y",                # 10/05/24
++)
++
++
++def _to_datetime(value: Any) -> datetime:
++    """Coerce a date/datetime or a string in a wide range of common formats
++    into a datetime for comparison. Strings are trimmed first."""
++    if isinstance(value, datetime):
++        return value
++    if isinstance(value, date):
++        return datetime(value.year, value.month, value.day)
++    if not isinstance(value, str):
++        raise ValueError(f"Cannot interpret {value!r} as a date/datetime")
++
++    text = value.strip()
++    # 1) ISO 8601 first (handles date, datetime, and trailing 'Z' for UTC).
++    try:
++        return datetime.fromisoformat(text.replace("Z", "+00:00"))
++    except ValueError:
++        pass
++    # 2) Fall back to the common explicit formats.
++    for fmt in _DATE_FORMATS:
++        try:
++            return datetime.strptime(text, fmt)
++        except ValueError:
++            continue
++    raise ValueError(f"Cannot interpret {value!r} as a date/datetime")
++
++
++# --------------------------------------------------------------------------
++# Presence
++# --------------------------------------------------------------------------
++@operator("not_empty")
++def not_empty(left: Any, right: Any) -> bool:  # right ignored (unary)
++    return not _is_empty(left)
++
++
++@operator("is_empty")
++def is_empty(left: Any, right: Any) -> bool:  # right ignored (unary)
++    return _is_empty(left)
++
++
++# --------------------------------------------------------------------------
++# Equality
++# --------------------------------------------------------------------------
++@operator("equals")
++def equals(left: Any, right: Any) -> bool:
++    return _norm(left) == _norm(right)
++
++
++@operator("not_equals")
++def not_equals(left: Any, right: Any) -> bool:
++    return _norm(left) != _norm(right)
++
++
++# --------------------------------------------------------------------------
++# String / collection membership
++# --------------------------------------------------------------------------
++@operator("contains")
++def contains(left: Any, right: Any) -> bool:
++    if left is None:
++        return False
++    if isinstance(left, str):
++        return _norm(right) in _norm(left)
++    return right in left  # collection membership: exact
++
++
++@operator("not_contains")
++def not_contains(left: Any, right: Any) -> bool:
++    return not contains(left, right)
++
++
++@operator("starts_with")
++def starts_with(left: Any, right: Any) -> bool:
++    return _norm(str(left)).startswith(_norm(str(right)))
++
++
++@operator("ends_with")
++def ends_with(left: Any, right: Any) -> bool:
++    return _norm(str(left)).endswith(_norm(str(right)))
++
++
++# --------------------------------------------------------------------------
++# Numeric comparison
++#
++# If either side is missing (None) or not numeric, the comparison simply
++# returns False (the rule fails) rather than raising — a missing/garbage value
++# can't satisfy an ordering check. The failure reason still shows the raw value
++# (e.g. =None) so the cause is visible.
++# --------------------------------------------------------------------------
++def _numbers(left: Any, right: Any):
++    try:
++        return _to_number(left), _to_number(right)
++    except (TypeError, ValueError):
++        return None
++
++
++@operator("greater_than")
++def greater_than(left: Any, right: Any) -> bool:
++    pair = _numbers(left, right)
++    return pair is not None and pair[0] > pair[1]
++
++
++@operator("less_than")
++def less_than(left: Any, right: Any) -> bool:
++    pair = _numbers(left, right)
++    return pair is not None and pair[0] < pair[1]
++
++
++@operator("greater_than_or_equal")
++def greater_than_or_equal(left: Any, right: Any) -> bool:
++    pair = _numbers(left, right)
++    return pair is not None and pair[0] >= pair[1]
++
++
++@operator("less_than_or_equal")
++def less_than_or_equal(left: Any, right: Any) -> bool:
++    pair = _numbers(left, right)
++    return pair is not None and pair[0] <= pair[1]
++
++
++# --------------------------------------------------------------------------
++# Date comparison
++#
++# Same policy as numeric: a missing (None) or unparseable date makes the
++# comparison return False instead of raising.
++# --------------------------------------------------------------------------
++def _dates(left: Any, right: Any):
++    try:
++        return _to_datetime(left), _to_datetime(right)
++    except (TypeError, ValueError):
++        return None
++
++
++@operator("before")
++def before(left: Any, right: Any) -> bool:
++    pair = _dates(left, right)
++    return pair is not None and pair[0] < pair[1]
++
++
++@operator("after")
++def after(left: Any, right: Any) -> bool:
++    pair = _dates(left, right)
++    return pair is not None and pair[0] > pair[1]
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/repository.py rule-engine/src/rule_engine/repository.py
+--- components-empty-1/src/rule_engine/repository.py	1970-01-01 05:30:00
++++ rule-engine/src/rule_engine/repository.py	2026-07-21 11:55:53
+@@ -0,0 +1,64 @@
++"""Rule set repository: loads rule set definitions and indexes them by
++``exception_code`` so the service can look them up at evaluation time.
++
++Typical use::
++
++    repo = RuleRepository.from_directory("rules")
++    rule_set = repo.get("SOF002")
++"""
++
++from __future__ import annotations
++
++import glob
++import json
++import os
++from typing import Dict, List, Optional
++
++
++class UnknownExceptionCode(KeyError):
++    """Raised when no rule set is registered for a given exception code."""
++
++
++class RuleRepository:
++    def __init__(self, rule_sets: Optional[Dict[str, dict]] = None):
++        # exception_code -> rule_set dict
++        self._by_code: Dict[str, dict] = dict(rule_sets or {})
++
++    # -- construction ------------------------------------------------------
++    @classmethod
++    def from_directory(cls, directory: str) -> "RuleRepository":
++        """Load every ``*.json`` rule set in ``directory`` (recursively)."""
++        repo = cls()
++        pattern = os.path.join(directory, "**", "*.json")
++        for path in sorted(glob.glob(pattern, recursive=True)):
++            with open(path, "r", encoding="utf-8") as fh:
++                rule_set = json.load(fh)
++            repo.register(rule_set, source=path)
++        return repo
++
++    def register(self, rule_set: dict, source: str = "<inline>") -> None:
++        code = rule_set.get("exception_code")
++        if not code:
++            raise ValueError(f"Rule set in {source} has no 'exception_code'")
++        if code in self._by_code:
++            raise ValueError(
++                f"Duplicate exception_code '{code}' (from {source}); "
++                f"already registered."
++            )
++        self._by_code[code] = rule_set
++
++    # -- lookup ------------------------------------------------------------
++    def has(self, exception_code: str) -> bool:
++        return exception_code in self._by_code
++
++    def get(self, exception_code: str) -> dict:
++        try:
++            return self._by_code[exception_code]
++        except KeyError:
++            raise UnknownExceptionCode(
++                f"No rule set registered for exception code '{exception_code}'. "
++                f"Known codes: {', '.join(sorted(self._by_code)) or '(none)'}"
++            )
++
++    def codes(self) -> List[str]:
++        return sorted(self._by_code)
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/result.py rule-engine/src/rule_engine/result.py
+--- components-empty-1/src/rule_engine/result.py	1970-01-01 05:30:00
++++ rule-engine/src/rule_engine/result.py	2026-07-22 11:21:01
+@@ -0,0 +1,185 @@
++"""Result objects returned by the engine."""
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from typing import Any, Dict, List, Optional
++
++# Operators that only look at the left operand; the right side is ignored.
++UNARY_OPERATORS = {"not_empty", "is_empty"}
++
++
++def describe_operand(operand: Optional[Dict[str, Any]]) -> Optional[str]:
++    """Human-readable location of an operand, e.g. ``INVOICE.counterparty_name``
++    for a document field or ``application.currency`` for an application field."""
++    if not operand:
++        return None
++    source = operand.get("source")
++    if source == "DOCUMENT":
++        return f"{operand.get('document_type')}.{operand.get('field')}"
++    if source == "APPLICATION":
++        return f"application.{operand.get('field')}"
++    if source == "STATIC":
++        return f"static({operand.get('value')!r})"
++    return str(source)
++
++
++@dataclass
++class RuleResult:
++    """The outcome of evaluating a single rule node (leaf or group)."""
++
++    rule_id: str
++    description: str
++    passed: bool
++    is_group: bool
++    logical_operator: Optional[str] = None       # for groups: AND / OR
++    operator: Optional[str] = None                # for leaves
++    severity: Optional[str] = None                # for leaves
++    failure_reason: Optional[str] = None
++    left_value: Any = None                        # resolved value (leaves)
++    right_value: Any = None                       # resolved value (leaves)
++    left_operand: Optional[Dict[str, Any]] = None  # raw operand descriptor
++    right_operand: Optional[Dict[str, Any]] = None
++    left_missing: Optional[str] = None            # why the left value was missing
++    right_missing: Optional[str] = None           # why the right value was missing
++    children: List["RuleResult"] = field(default_factory=list)
++    error: Optional[str] = None                   # set if evaluation errored
++
++    def detail(self) -> Optional[str]:
++        """A failure message that names the operand(s) involved and their
++        actual values, e.g.:
++
++            "Invoice currency does not match application currency
++             (INVOICE.currency='GBP' vs application.currency='USD')"
++        """
++        if self.error is not None:
++            return self.error
++        base = self.failure_reason or "Condition not met"
++        left = describe_operand(self.left_operand)
++        if left is None:
++            return base
++        # If a value was missing, say precisely what (missing doc type / field)
++        # instead of just showing "=None".
++        left_piece = self.left_missing or f"{left}={self.left_value!r}"
++        detail = left_piece
++        if self.operator not in UNARY_OPERATORS and self.right_operand is not None:
++            right = describe_operand(self.right_operand)
++            right_piece = self.right_missing or f"{right}={self.right_value!r}"
++            detail += f" vs {right_piece}"
++        return f"{base} ({detail})"
++
++    def iter_leaves(self) -> List["RuleResult"]:
++        """Return every leaf result in evaluation order (depth-first)."""
++        out: List[RuleResult] = []
++        if self.is_group:
++            for child in self.children:
++                out.extend(child.iter_leaves())
++        else:
++            out.append(self)
++        return out
++
++    def failed_leaves(self, severity: Optional[str] = None) -> List["RuleResult"]:
++        """Flatten the tree and return failing leaf results.
++
++        If ``severity`` is given, only leaves of that severity are returned.
++        """
++        out: List[RuleResult] = []
++        if self.is_group:
++            for child in self.children:
++                out.extend(child.failed_leaves(severity))
++        elif not self.passed:
++            if severity is None or self.severity == severity:
++                out.append(self)
++        return out
++
++    def to_dict(self) -> Dict[str, Any]:
++        d: Dict[str, Any] = {
++            "rule_id": self.rule_id,
++            "description": self.description,
++            "passed": self.passed,
++        }
++        if self.is_group:
++            d["logical_operator"] = self.logical_operator
++            d["children"] = [c.to_dict() for c in self.children]
++        else:
++            d["operator"] = self.operator
++            d["severity"] = self.severity
++            d["left_value"] = self.left_value
++            d["right_value"] = self.right_value
++            if not self.passed:
++                d["failure_reason"] = self.failure_reason
++        if self.error:
++            d["error"] = self.error
++        return d
++
++
++@dataclass
++class EvaluationReport:
++    """Top-level report for a whole rule set."""
++
++    rule_set_id: str
++    exception_code: str
++    evaluation_mode: str
++    logical_passed: bool          # pure boolean evaluation of the tree
++    decision: bool                # final decision after applying evaluation_mode
++    root: RuleResult
++    # Leaves that actually caused the decision to FAIL (context-aware:
++    # respects AND/OR/NOT). Empty when the decision passed.
++    blocking_failures: List[RuleResult] = field(default_factory=list)
++
++    @property
++    def all_failures(self) -> List[RuleResult]:
++        """Every leaf that evaluated False (informational; may include
++        conditions that did not block the decision, e.g. an OR branch)."""
++        return self.root.failed_leaves()
++
++    @property
++    def executed_rules(self) -> List[Dict[str, Any]]:
++        """Flat, ordered list of every rule (condition) that was evaluated,
++        with its description and outcome — the audit trail of the run."""
++        blocking_ids = {id(f) for f in self.blocking_failures}
++        rows: List[Dict[str, Any]] = []
++        for leaf in self.root.iter_leaves():
++            if leaf.error is not None:
++                outcome = "ERROR"
++            elif leaf.passed:
++                outcome = "PASS"
++            elif id(leaf) in blocking_ids:
++                outcome = "FAIL"       # failed and blocked the decision
++            else:
++                outcome = "WARN"       # failed but did not block
++            rows.append({
++                "rule_id": leaf.rule_id,
++                "description": leaf.description,
++                "operator": leaf.operator,
++                "severity": leaf.severity,
++                "left": describe_operand(leaf.left_operand),
++                "left_value": leaf.left_value,
++                "right": describe_operand(leaf.right_operand),
++                "right_value": leaf.right_value,
++                "passed": leaf.passed,
++                "outcome": outcome,
++                "reason": leaf.detail() if not leaf.passed else None,
++            })
++        return rows
++
++    def to_dict(self) -> Dict[str, Any]:
++        return {
++            "rule_set_id": self.rule_set_id,
++            "exception_code": self.exception_code,
++            "evaluation_mode": self.evaluation_mode,
++            "logical_passed": self.logical_passed,
++            "decision": self.decision,
++            "blocking_failures": [
++                {"rule_id": f.rule_id, "severity": f.severity,
++                 "reason": f.detail()}
++                for f in self.blocking_failures
++            ],
++            "executed_rules": self.executed_rules,
++            "all_failures": [
++                {"rule_id": f.rule_id, "severity": f.severity,
++                 "reason": f.failure_reason}
++                for f in self.all_failures
++            ],
++            "result_tree": self.root.to_dict(),
++        }
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/service.py rule-engine/src/rule_engine/service.py
+--- components-empty-1/src/rule_engine/service.py	1970-01-01 05:30:00
++++ rule-engine/src/rule_engine/service.py	2026-07-22 11:51:38
+@@ -0,0 +1,97 @@
++"""The library facade the host application talks to.
++
++The application supplies:
++  * one or more exception codes,
++  * the extracted document fields,
++  * the application data fields,
++
++and gets back a BatchResult: one EvaluationReport per exception code, plus
++an overall decision and the list of any codes that had no rule set.
++
++Example
++-------
++    from rule_engine import RuleEngineService, RuleRepository
++
++    service = RuleEngineService(RuleRepository.from_directory("rules"))
++    result = service.evaluate(
++        exception_codes=["SOF002", "DEMO001"],
++        documents={"INVOICE": {"counterparty_name": "Acme", ...}},
++        application={"currency": "GBP", ...},
++    )
++
++    result.decision          # overall pass/fail (all codes must pass)
++    result.reports["SOF002"] # per-code EvaluationReport
++    result.to_dict()         # fully serialisable audit payload
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from typing import Any, Dict, List
++
++from .context import EvaluationContext
++from .engine import RuleEngine
++from .repository import RuleRepository
++from .result import EvaluationReport
++
++
++@dataclass
++class BatchResult:
++    """Aggregate result across all requested exception codes."""
++
++    decision: bool                              # True only if every code passed
++    reports: Dict[str, EvaluationReport] = field(default_factory=dict)
++    unknown_codes: List[str] = field(default_factory=list)
++
++    def to_dict(self) -> Dict[str, Any]:
++        return {
++            "decision": self.decision,
++            "unknown_codes": self.unknown_codes,
++            "results": {
++                code: report.to_dict() for code, report in self.reports.items()
++            },
++        }
++
++
++class RuleEngineService:
++    def __init__(self, repository: RuleRepository):
++        self.repository = repository
++
++    @classmethod
++    def from_directory(cls, directory: str) -> "RuleEngineService":
++        return cls(RuleRepository.from_directory(directory))
++
++    def evaluate(
++        self,
++        exception_codes: List[str],
++        documents: Dict[str, Dict[str, Any]] | None = None,
++        application: Dict[str, Any] | None = None,
++    ) -> BatchResult:
++        context = EvaluationContext(
++            documents=documents or {},
++            application=application or {},
++        )
++
++        reports: Dict[str, EvaluationReport] = {}
++        unknown: List[str] = []
++
++        for code in exception_codes:
++            if not self.repository.has(code):
++                unknown.append(code)
++                continue
++            rule_set = self.repository.get(code)
++            reports[code] = RuleEngine(rule_set).evaluate(context)
++
++        # Overall passes only if there are no unknown codes AND every
++        # evaluated rule set passed its decision.
++        decision = (
++            len(unknown) == 0
++            and all(r.decision for r in reports.values())
++            and len(reports) > 0
++        )
++
++        return BatchResult(
++            decision=decision,
++            reports=reports,
++            unknown_codes=unknown,
++        )
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/.gitignore rule-engine/ui/.gitignore
+--- components-empty-1/ui/.gitignore	1970-01-01 05:30:00
++++ rule-engine/ui/.gitignore	2026-07-21 15:58:19
+@@ -0,0 +1,6 @@
++node_modules/
++.next/
++out/
++next-env.d.ts
++*.tsbuildinfo
++.env.local
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/README.md rule-engine/ui/README.md
+--- components-empty-1/ui/README.md	1970-01-01 05:30:00
++++ rule-engine/ui/README.md	2026-07-22 11:57:52
+@@ -0,0 +1,93 @@
++# Rule Review UI (Next.js)
++
++A runnable single-page app for analysts to review a `/evaluate` response.
++No UI-library or Tailwind dependency — styling uses Next.js built-in styled-jsx.
++
++## Run it (Windows)
++
++Requires **Node 20.9** — https://nodejs.org/download/release/v20.9.0/
++
++```powershell
++node --version         # -> v20.9.x
++
++cd ui
++npm install
++npm run dev            # http://localhost:3000
++```
++
++Start the backend API in another terminal (CORS is enabled for dev):
++
++```powershell
++# from the project root, with the .venv activated (see main README)
++rule-engine-api        # or: uvicorn rule_engine.api.app:app --reload
++```
++
++Open http://localhost:3000, edit the payload, click **Evaluate**.
++The UI reads the API URL from `ui\.env.local`
++(`NEXT_PUBLIC_RULE_ENGINE_URL=http://127.0.0.1:8000`).
++
++> macOS / Linux: identical `npm` commands.
++
++## Files
++
++| File | What it is |
++|------|------------|
++| `package.json`, `tsconfig.json`, `next.config.mjs` | Minimal Next.js app (demo host) |
++| `app/layout.tsx`, `app/page.tsx` | Demo page: enter a payload, call the API, render |
++| **`components/RuleReview/`** | **The reusable component (this is the portable part)** |
++
++## The reusable component
++
++`components/RuleReview/` is self-contained and **React-only** — no Tailwind, no
++CSS-in-JS library, no Next.js APIs. The single input is the API response.
++
++```
++components/RuleReview/
++├── index.ts         # exports { RuleReview } + all types
++├── RuleReview.tsx   # the component (table + hierarchy views)
++├── styles.ts        # scoped stylesheet (injected once, namespaced .re-root)
++└── types.ts         # TypeScript types for the API response
++```
++
++```tsx
++import { RuleReview } from "@/components/RuleReview";
++import type { EvaluationResponse } from "@/components/RuleReview";
++
++<RuleReview data={apiResponse} />
++<RuleReview data={apiResponse} defaultView="tree" />   // optional
++```
++
++### Moving it to another project
++
++Copy the whole **`components/RuleReview/`** folder in. That's it — it works in
++any React app (Next.js, Vite, CRA). It needs only `react`
++(`useState`/`useEffect`). Styles auto-inject on first render.
++
++## API base URL
++
++Set in `.env.local` (already created):
++
++```bash
++NEXT_PUBLIC_RULE_ENGINE_URL=http://127.0.0.1:8000
++```
++
++In production, lock down CORS on the API side:
++
++```bash
++RULE_ENGINE_CORS_ORIGINS="https://analyst.example.com" rule-engine-api
++```
++
++## What the analyst sees
++
++- **Overall decision** banner (PASS / FAIL).
++- Per exception code: a card with **summary counts** (total / passed / blocking /
++  warnings / errors), a highlighted **blocking failures** list, and a **rules
++  table** (status, rule, severity, the check, and the detail/reason).
++- A **"failures & warnings only"** toggle to cut noise.
++- Status shown with icon **and** label **and** colour (not colour alone).
++
++Each card has a **Table / Hierarchy** switch:
++- **Table** — flat list of every leaf rule (good for scanning/filtering).
++- **Hierarchy** — the nested AND/OR/NOT tree, expandable from the root. Branches
++  containing a failure or warning open automatically; fully-passing branches
++  start collapsed so attention goes to what matters.
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/app/layout.tsx rule-engine/ui/app/layout.tsx
+--- components-empty-1/ui/app/layout.tsx	1970-01-01 05:30:00
++++ rule-engine/ui/app/layout.tsx	2026-07-21 15:58:07
+@@ -0,0 +1,14 @@
++import type { ReactNode } from "react";
++
++export const metadata = {
++  title: "SOF Rule Review",
++  description: "Analyst review of rule-engine evaluation results",
++};
++
++export default function RootLayout({ children }: { children: ReactNode }) {
++  return (
++    <html lang="en">
++      <body style={{ margin: 0 }}>{children}</body>
++    </html>
++  );
++}
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/app/page.tsx rule-engine/ui/app/page.tsx
+--- components-empty-1/ui/app/page.tsx	1970-01-01 05:30:00
++++ rule-engine/ui/app/page.tsx	2026-07-21 18:49:07
+@@ -0,0 +1,101 @@
++"use client";
++
++// Example App Router page (app/review/page.tsx) that calls the API and shows
++// the review component. Set NEXT_PUBLIC_RULE_ENGINE_URL to your API base.
++
++import { useState } from "react";
++import { RuleReview } from "../components/RuleReview";
++import type { EvaluationResponse } from "../components/RuleReview";
++
++const API_BASE =
++  process.env.NEXT_PUBLIC_RULE_ENGINE_URL ?? "http://127.0.0.1:8000";
++
++const SAMPLE_REQUEST = {
++  exception_codes: ["SOF002"],
++  documents: {
++    INVOICE: {
++      counterparty_name: "Acme Trading Ltd",
++      counterparty_address: "1 High Street, London",
++    },
++    CONTRACT: {
++      contract_name: "Master Services Agreement",
++      contract_address: "1 High Street, London",
++    },
++  },
++  application: { currency: "GBP", requested_amount: 15000 },
++};
++
++export default function ReviewPage() {
++  const [payload, setPayload] = useState(
++    JSON.stringify(SAMPLE_REQUEST, null, 2)
++  );
++  const [data, setData] = useState<EvaluationResponse | null>(null);
++  const [error, setError] = useState<string | null>(null);
++  const [loading, setLoading] = useState(false);
++
++  async function run() {
++    setLoading(true);
++    setError(null);
++    try {
++      const res = await fetch(`${API_BASE}/evaluate`, {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        body: payload,
++      });
++      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
++      setData((await res.json()) as EvaluationResponse);
++    } catch (e) {
++      setError(e instanceof Error ? e.message : String(e));
++    } finally {
++      setLoading(false);
++    }
++  }
++
++  return (
++    <main style={{ background: "#f6f7f9", minHeight: "100vh" }}>
++      <div style={{ maxWidth: 1040, margin: "0 auto", padding: "24px 16px 0" }}>
++        <h1 style={{ fontSize: 20, margin: "0 0 12px" }}>
++          SOF Exception — Rule Review
++        </h1>
++        <textarea
++          value={payload}
++          onChange={(e) => setPayload(e.target.value)}
++          rows={10}
++          spellCheck={false}
++          style={{
++            width: "100%",
++            fontFamily: "ui-monospace, Menlo, monospace",
++            fontSize: 12,
++            padding: 12,
++            borderRadius: 10,
++            border: "1px solid #e5e7eb",
++            boxSizing: "border-box",
++          }}
++        />
++        <button
++          onClick={run}
++          disabled={loading}
++          style={{
++            marginTop: 10,
++            padding: "8px 18px",
++            borderRadius: 8,
++            border: "none",
++            background: "#4f46e5",
++            color: "#fff",
++            fontWeight: 600,
++            cursor: "pointer",
++          }}
++        >
++          {loading ? "Evaluating…" : "Evaluate"}
++        </button>
++        {error && (
++          <div style={{ color: "#b91c1c", marginTop: 10, fontSize: 13 }}>
++            {error}
++          </div>
++        )}
++      </div>
++
++      {data && <RuleReview data={data} />}
++    </main>
++  );
++}
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/components/RuleReview/RuleReview.tsx rule-engine/ui/components/RuleReview/RuleReview.tsx
+--- components-empty-1/ui/components/RuleReview/RuleReview.tsx	1970-01-01 05:30:00
++++ rule-engine/ui/components/RuleReview/RuleReview.tsx	2026-07-21 18:48:35
+@@ -0,0 +1,356 @@
++"use client";
++
++/**
++ * RuleReview — a portable, dependency-free (React-only) component that renders
++ * a rule-engine `/evaluate` response for an analyst to review.
++ *
++ * Usage (any React app — Next.js, Vite, CRA):
++ *
++ *   import { RuleReview } from "@/components/RuleReview";
++ *   <RuleReview data={apiResponse} />
++ *
++ * The only input is the API response. Styling is injected once as a scoped
++ * stylesheet (all classes namespaced under `.re-root`).
++ */
++
++import { useEffect, useMemo, useState } from "react";
++import type {
++  EvaluationResponse,
++  ExecutedRule,
++  Outcome,
++  RuleNode,
++  RuleSetResult,
++  Severity,
++} from "./types";
++import { RULE_REVIEW_CSS } from "./styles";
++
++const STYLE_ID = "rule-review-styles";
++
++/** Inject the stylesheet once per document, on the client. */
++function useInjectStyles() {
++  useEffect(() => {
++    if (typeof document === "undefined") return;
++    if (document.getElementById(STYLE_ID)) return;
++    const el = document.createElement("style");
++    el.id = STYLE_ID;
++    el.textContent = RULE_REVIEW_CSS;
++    document.head.appendChild(el);
++  }, []);
++}
++
++export interface RuleReviewProps {
++  data: EvaluationResponse;
++  /** Initial view for each rule set. Default "table". */
++  defaultView?: "table" | "tree";
++}
++
++export default function RuleReview({ data, defaultView = "table" }: RuleReviewProps) {
++  useInjectStyles();
++  return (
++    <div className="re-root">
++      <OverallBanner data={data} />
++
++      {data.unknown_codes.length > 0 && (
++        <div className="re-unknown" role="alert">
++          <strong>No rules found</strong> for exception code
++          {data.unknown_codes.length > 1 ? "s" : ""}: {data.unknown_codes.join(", ")}
++        </div>
++      )}
++
++      {data.results.map((rs) => (
++        <RuleSetCard key={rs.exception_code} result={rs} defaultView={defaultView} />
++      ))}
++    </div>
++  );
++}
++
++/* ---------------------------------------------------------------- Banner */
++function OverallBanner({ data }: { data: EvaluationResponse }) {
++  const pass = data.decision;
++  const codes = data.results.map((r) => r.exception_code).join(", ");
++  return (
++    <div className={`re-banner ${pass ? "pass" : "fail"}`}>
++      <div className="re-banner-icon" aria-hidden>
++        {pass ? "✓" : "✗"}
++      </div>
++      <div>
++        <div className="re-banner-title">
++          Overall decision: {pass ? "PASS" : "FAIL"}
++        </div>
++        <div className="re-banner-sub">
++          {data.results.length} rule set{data.results.length === 1 ? "" : "s"}
++          {codes ? ` · ${codes}` : ""}
++        </div>
++      </div>
++    </div>
++  );
++}
++
++/* ------------------------------------------------------------- Rule set */
++function RuleSetCard({
++  result,
++  defaultView,
++}: {
++  result: RuleSetResult;
++  defaultView: "table" | "tree";
++}) {
++  const [onlyIssues, setOnlyIssues] = useState(false);
++  const [view, setView] = useState<"table" | "tree">(defaultView);
++
++  const rows = useMemo(
++    () =>
++      onlyIssues
++        ? result.executed_rules.filter((r) => r.outcome !== "PASS")
++        : result.executed_rules,
++    [onlyIssues, result.executed_rules]
++  );
++
++  const s = result.summary;
++
++  return (
++    <section className="re-card">
++      <header className="re-card-head">
++        <div>
++          <div className="re-code">{result.exception_code}</div>
++          <div className="re-setid">{result.rule_set_id}</div>
++        </div>
++        <StatusPill outcome={result.decision ? "PASS" : "FAIL"} large />
++      </header>
++
++      <div className="re-meta">
++        <span>
++          Mode: <code>{result.evaluation_mode}</code>
++        </span>
++        <span>Logical: {result.logical_passed ? "PASS" : "FAIL"}</span>
++      </div>
++
++      <div className="re-kpis">
++        <Kpi label="Total" value={s.total} tone="neutral" />
++        <Kpi label="Passed" value={s.passed} tone="pass" />
++        <Kpi label="Blocking" value={s.failed} tone="fail" />
++        <Kpi label="Warnings" value={s.warnings} tone="warn" />
++        <Kpi label="Errors" value={s.errors} tone="error" />
++      </div>
++
++      {result.blocking_failures.length > 0 && (
++        <div className="re-blockers">
++          <div className="re-blockers-title">Blocking failures</div>
++          <ul>
++            {result.blocking_failures.map((f) => (
++              <li key={f.rule_id}>
++                <SeverityTag severity={f.severity} />
++                <span className="re-blocker-id">{f.rule_id}</span>
++                <span className="re-blocker-reason">{f.reason}</span>
++              </li>
++            ))}
++          </ul>
++        </div>
++      )}
++
++      <div className="re-table-tools">
++        <div className="re-viewswitch" role="tablist">
++          <button
++            role="tab"
++            aria-selected={view === "table"}
++            className={view === "table" ? "active" : ""}
++            onClick={() => setView("table")}
++          >
++            Table
++          </button>
++          <button
++            role="tab"
++            aria-selected={view === "tree"}
++            className={view === "tree" ? "active" : ""}
++            onClick={() => setView("tree")}
++          >
++            Hierarchy
++          </button>
++        </div>
++        {view === "table" ? (
++          <label className="re-toggle">
++            <input
++              type="checkbox"
++              checked={onlyIssues}
++              onChange={(e) => setOnlyIssues(e.target.checked)}
++            />
++            Show failures &amp; warnings only
++          </label>
++        ) : (
++          <span className="re-table-caption">Expand from root ↓</span>
++        )}
++      </div>
++
++      {view === "table" ? (
++        <div className="re-table-wrap">
++          <table className="re-table">
++            <thead>
++              <tr>
++                <th>Status</th>
++                <th>Rule</th>
++                <th>Severity</th>
++                <th>Check</th>
++                <th>Detail</th>
++              </tr>
++            </thead>
++            <tbody>
++              {rows.map((r) => (
++                <RuleRow key={r.rule_id} rule={r} />
++              ))}
++              {rows.length === 0 && (
++                <tr>
++                  <td colSpan={5} className="re-empty">
++                    Nothing to show.
++                  </td>
++                </tr>
++              )}
++            </tbody>
++          </table>
++        </div>
++      ) : (
++        <div className="re-tree">
++          <TreeNode node={result.result_tree} depth={0} />
++        </div>
++      )}
++    </section>
++  );
++}
++
++/* --------------------------------------------------------------- Row */
++function RuleRow({ rule }: { rule: ExecutedRule }) {
++  const check =
++    rule.left && rule.right
++      ? `${rule.left} ${rule.operator} ${rule.right}`
++      : `${rule.left ?? ""} ${rule.operator}`;
++
++  return (
++    <tr className={rule.outcome !== "PASS" ? "issue" : ""}>
++      <td>
++        <StatusPill outcome={rule.outcome} />
++      </td>
++      <td>
++        <div className="rid">{rule.rule_id}</div>
++        <div className="rdesc">{rule.description}</div>
++      </td>
++      <td>
++        <SeverityTag severity={rule.severity} />
++      </td>
++      <td className="rcheck">{check.trim()}</td>
++      <td className="rdetail">
++        {rule.reason ? (
++          <span className="reason">{rule.reason}</span>
++        ) : (
++          <span className="ok">
++            {fmt(rule.left_value)}
++            {rule.right != null ? ` → ${fmt(rule.right_value)}` : ""}
++          </span>
++        )}
++      </td>
++    </tr>
++  );
++}
++
++/* ---------------------------------------------------------------- Tree */
++function subtreeHasIssue(node: RuleNode): boolean {
++  if (!node.is_group) return node.outcome !== "PASS";
++  return node.children.some(subtreeHasIssue);
++}
++
++function TreeNode({ node, depth }: { node: RuleNode; depth: number }) {
++  // Open the root and any branch that contains a failure/warning; collapse
++  // fully-passing branches so attention goes to what matters.
++  const [open, setOpen] = useState(depth === 0 || subtreeHasIssue(node));
++  const indent = { paddingLeft: depth * 18 };
++
++  if (!node.is_group) {
++    const check =
++      node.left && node.right
++        ? `${node.left} ${node.operator} ${node.right}`
++        : `${node.left ?? ""} ${node.operator}`;
++    return (
++      <div className="tnode leaf" style={indent}>
++        <span className="tspacer" aria-hidden />
++        <StatusPill outcome={node.outcome} />
++        <span className="tid">{node.rule_id}</span>
++        <span className="tdesc">{node.description}</span>
++        <SeverityTag severity={node.severity} />
++        <span className="tcheck">{check.trim()}</span>
++        {node.reason && <span className="treason">{node.reason}</span>}
++      </div>
++    );
++  }
++
++  return (
++    <div className="tgroup">
++      <button
++        className="tnode group"
++        style={indent}
++        onClick={() => setOpen((o) => !o)}
++        aria-expanded={open}
++      >
++        <span className={`caret ${open ? "o" : ""}`} aria-hidden>
++          ▸
++        </span>
++        <StatusPill outcome={node.outcome} />
++        <span className={`logic ${(node.logical_operator ?? "").toLowerCase()}`}>
++          {node.logical_operator}
++        </span>
++        <span className="tdesc">{node.description}</span>
++        <span className="tid dim">{node.rule_id}</span>
++      </button>
++      {open && (
++        <div className="tchildren">
++          {node.children.map((c) => (
++            <TreeNode key={c.rule_id} node={c} depth={depth + 1} />
++          ))}
++        </div>
++      )}
++    </div>
++  );
++}
++
++/* ------------------------------------------------------------ Primitives */
++function StatusPill({ outcome, large = false }: { outcome: Outcome; large?: boolean }) {
++  const map: Record<Outcome, { icon: string; label: string; cls: string }> = {
++    PASS: { icon: "✓", label: "Pass", cls: "pass" },
++    FAIL: { icon: "✗", label: "Fail", cls: "fail" },
++    WARN: { icon: "!", label: "Warn", cls: "warn" },
++    ERROR: { icon: "⚠", label: "Error", cls: "error" },
++  };
++  const m = map[outcome];
++  return (
++    <span className={`pill ${m.cls} ${large ? "lg" : ""}`}>
++      <span aria-hidden>{m.icon}</span>
++      {m.label}
++    </span>
++  );
++}
++
++function SeverityTag({ severity }: { severity: Severity | null | undefined }) {
++  if (!severity) return <span className="dash">—</span>;
++  return <span className={`sev ${severity.toLowerCase()}`}>{severity}</span>;
++}
++
++function Kpi({
++  label,
++  value,
++  tone,
++}: {
++  label: string;
++  value: number;
++  tone: "neutral" | "pass" | "fail" | "warn" | "error";
++}) {
++  return (
++    <div className={`kpi ${tone}`}>
++      <div className="v">{value}</div>
++      <div className="l">{label}</div>
++    </div>
++  );
++}
++
++/* Format a resolved operand value for display. */
++function fmt(v: unknown): string {
++  if (v === null || v === undefined) return "None";
++  if (typeof v === "string") return `"${v}"`;
++  if (typeof v === "object") return JSON.stringify(v);
++  return String(v);
++}
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/components/RuleReview/index.ts rule-engine/ui/components/RuleReview/index.ts
+--- components-empty-1/ui/components/RuleReview/index.ts	1970-01-01 05:30:00
++++ rule-engine/ui/components/RuleReview/index.ts	2026-07-21 18:48:46
+@@ -0,0 +1,18 @@
++// Public entry point for the reusable component.
++// Copy the whole `RuleReview/` folder into any React project and import:
++//
++//   import { RuleReview } from ".../components/RuleReview";
++//   <RuleReview data={apiResponse} />
++
++export { default as RuleReview } from "./RuleReview";
++export type { RuleReviewProps } from "./RuleReview";
++export type {
++  EvaluationResponse,
++  RuleSetResult,
++  ExecutedRule,
++  RuleNode,
++  Failure,
++  Summary,
++  Outcome,
++  Severity,
++} from "./types";
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/components/RuleReview/styles.ts rule-engine/ui/components/RuleReview/styles.ts
+--- components-empty-1/ui/components/RuleReview/styles.ts	1970-01-01 05:30:00
++++ rule-engine/ui/components/RuleReview/styles.ts	2026-07-21 18:47:50
+@@ -0,0 +1,112 @@
++// All styles for RuleReview, scoped under `.re-root` so they can't collide
++// with the host app. Injected once as a plain <style> tag — no styled-jsx,
++// no CSS-in-JS library, no build config required.
++
++const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
++
++export const RULE_REVIEW_CSS = `
++.re-root {
++  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
++  color: #1f2937;
++  max-width: 1040px;
++  margin: 0 auto;
++  padding: 24px 16px 64px;
++  display: flex;
++  flex-direction: column;
++  gap: 20px;
++}
++.re-root * { box-sizing: border-box; }
++.re-root .re-unknown { background:#fffbeb; border:1px solid #fde68a; color:#92400e; padding:12px 16px; border-radius:10px; font-size:14px; }
++
++/* banner */
++.re-root .re-banner { display:flex; align-items:center; gap:16px; padding:18px 20px; border-radius:12px; border:1px solid transparent; }
++.re-root .re-banner.pass { background:#ecfdf5; border-color:#a7f3d0; color:#065f46; }
++.re-root .re-banner.fail { background:#fef2f2; border-color:#fecaca; color:#991b1b; }
++.re-root .re-banner-icon { width:40px; height:40px; border-radius:999px; display:grid; place-items:center; font-size:22px; font-weight:700; background:rgba(255,255,255,0.6); }
++.re-root .re-banner-title { font-size:18px; font-weight:700; }
++.re-root .re-banner-sub { font-size:13px; opacity:0.8; margin-top:2px; }
++
++/* card */
++.re-root .re-card { background:#fff; border:1px solid #e5e7eb; border-radius:14px; box-shadow:0 1px 2px rgba(16,24,40,0.04); padding:20px; display:flex; flex-direction:column; gap:16px; }
++.re-root .re-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
++.re-root .re-code { font-size:18px; font-weight:700; }
++.re-root .re-setid { font-size:13px; color:#6b7280; margin-top:2px; }
++.re-root .re-meta { display:flex; gap:20px; font-size:13px; color:#6b7280; }
++.re-root .re-meta code { background:#f3f4f6; padding:1px 6px; border-radius:6px; font-size:12px; }
++.re-root .re-kpis { display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; }
++.re-root .re-blockers { background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:12px 14px; }
++.re-root .re-blockers-title { font-weight:700; color:#991b1b; font-size:13px; margin-bottom:8px; }
++.re-root .re-blockers ul { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
++.re-root .re-blockers li { display:flex; align-items:center; gap:8px; font-size:13px; flex-wrap:wrap; }
++.re-root .re-blocker-id { font-weight:600; font-family:${MONO}; }
++.re-root .re-blocker-reason { color:#7f1d1d; }
++
++/* tools / view switch */
++.re-root .re-table-tools { display:flex; align-items:center; justify-content:space-between; gap:12px; }
++.re-root .re-table-caption { font-size:13px; font-weight:600; color:#374151; }
++.re-root .re-viewswitch { display:inline-flex; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden; }
++.re-root .re-viewswitch button { border:none; background:#fff; padding:6px 14px; font-size:13px; font-weight:600; color:#6b7280; cursor:pointer; }
++.re-root .re-viewswitch button.active { background:#4f46e5; color:#fff; }
++.re-root .re-toggle { font-size:13px; color:#4b5563; display:flex; align-items:center; gap:6px; cursor:pointer; }
++
++/* table */
++.re-root .re-table-wrap { overflow-x:auto; border:1px solid #eef0f3; border-radius:10px; }
++.re-root .re-table { width:100%; border-collapse:collapse; font-size:13px; }
++.re-root .re-table th { text-align:left; background:#f9fafb; color:#6b7280; font-weight:600; padding:10px 12px; border-bottom:1px solid #eef0f3; white-space:nowrap; }
++.re-root .re-table tbody tr { border-bottom:1px solid #f1f2f4; }
++.re-root .re-table tbody tr:last-child { border-bottom:none; }
++.re-root .re-table tbody tr.issue { background:#fffdf7; }
++.re-root .re-table td { padding:10px 12px; vertical-align:top; }
++.re-root .re-empty { padding:18px; text-align:center; color:#9ca3af; }
++.re-root .rid { font-weight:600; font-family:${MONO}; font-size:12px; }
++.re-root .rdesc { color:#4b5563; margin-top:2px; }
++.re-root .rcheck { font-family:${MONO}; font-size:12px; color:#374151; white-space:nowrap; }
++.re-root .rdetail { min-width:220px; }
++.re-root .reason { color:#92400e; }
++.re-root .ok { color:#6b7280; }
++
++/* status pill */
++.re-root .pill { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; border:1px solid transparent; white-space:nowrap; }
++.re-root .pill.lg { font-size:14px; padding:6px 14px; }
++.re-root .pill.pass { background:#ecfdf5; color:#047857; border-color:#a7f3d0; }
++.re-root .pill.fail { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
++.re-root .pill.warn { background:#fffbeb; color:#b45309; border-color:#fde68a; }
++.re-root .pill.error { background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }
++
++/* severity tag */
++.re-root .sev { font-size:11px; font-weight:700; letter-spacing:0.02em; padding:2px 8px; border-radius:6px; border:1px solid; }
++.re-root .sev.critical { color:#b91c1c; background:#fef2f2; border-color:#fecaca; }
++.re-root .sev.high { color:#c2410c; background:#fff7ed; border-color:#fed7aa; }
++.re-root .sev.medium { color:#1d4ed8; background:#eff6ff; border-color:#bfdbfe; }
++.re-root .sev.low { color:#4b5563; background:#f3f4f6; border-color:#e5e7eb; }
++.re-root .dash { color:#9ca3af; }
++
++/* kpi */
++.re-root .kpi { border:1px solid #eef0f3; border-radius:10px; padding:10px 12px; text-align:center; background:#fff; }
++.re-root .kpi .v { font-size:22px; font-weight:700; line-height:1; }
++.re-root .kpi .l { font-size:11px; color:#6b7280; margin-top:4px; text-transform:uppercase; letter-spacing:0.03em; }
++.re-root .kpi.pass .v { color:#047857; }
++.re-root .kpi.fail .v { color:#b91c1c; }
++.re-root .kpi.warn .v { color:#b45309; }
++.re-root .kpi.error .v { color:#6d28d9; }
++
++/* tree */
++.re-root .re-tree { border:1px solid #eef0f3; border-radius:10px; padding:8px; }
++.re-root .tnode { display:flex; align-items:center; gap:8px; padding:6px 8px; font-size:13px; width:100%; text-align:left; }
++.re-root .tnode.group { background:none; border:none; cursor:pointer; border-radius:6px; }
++.re-root .tnode.group:hover { background:#f9fafb; }
++.re-root .tnode.leaf { border-radius:6px; }
++.re-root .tnode.leaf:hover { background:#fafafa; }
++.re-root .caret { display:inline-block; transition:transform 0.12s ease; color:#9ca3af; width:12px; }
++.re-root .caret.o { transform:rotate(90deg); }
++.re-root .tspacer { width:12px; display:inline-block; }
++.re-root .logic { font-size:11px; font-weight:700; padding:1px 7px; border-radius:5px; border:1px solid #e5e7eb; color:#374151; background:#f3f4f6; }
++.re-root .logic.or { color:#1d4ed8; background:#eff6ff; border-color:#bfdbfe; }
++.re-root .logic.not { color:#6d28d9; background:#f5f3ff; border-color:#ddd6fe; }
++.re-root .tid { font-family:${MONO}; font-size:11px; font-weight:600; color:#374151; }
++.re-root .tid.dim { color:#9ca3af; font-weight:500; }
++.re-root .tdesc { color:#4b5563; }
++.re-root .tcheck { font-family:${MONO}; font-size:11px; color:#6b7280; }
++.re-root .treason { color:#92400e; font-size:12px; }
++.re-root .tchildren { border-left:1px dashed #e5e7eb; margin-left:16px; }
++`;
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/components/RuleReview/types.ts rule-engine/ui/components/RuleReview/types.ts
+--- components-empty-1/ui/components/RuleReview/types.ts	1970-01-01 05:30:00
++++ rule-engine/ui/components/RuleReview/types.ts	2026-07-21 18:47:11
+@@ -0,0 +1,68 @@
++// TypeScript mirror of the rule-engine /evaluate API response.
++// This is the single input shape the RuleReview component consumes.
++
++export type Outcome = "PASS" | "FAIL" | "WARN" | "ERROR";
++export type Severity = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
++
++export interface ExecutedRule {
++  rule_id: string;
++  description: string;
++  operator: string | null;
++  severity: Severity | null;
++  left: string | null;
++  left_value: unknown;
++  right: string | null;
++  right_value: unknown;
++  passed: boolean;
++  outcome: Outcome;
++  reason: string | null;
++}
++
++export interface Failure {
++  rule_id: string;
++  severity: Severity | null;
++  reason: string | null;
++}
++
++export interface Summary {
++  total: number;
++  passed: number;
++  failed: number; // blocking failures
++  warnings: number; // non-blocking failures
++  errors: number;
++}
++
++export interface RuleNode {
++  rule_id: string;
++  description: string;
++  passed: boolean;
++  is_group: boolean;
++  outcome: Outcome;
++  logical_operator?: string | null;
++  operator?: string | null;
++  severity?: Severity | null;
++  left?: string | null;
++  left_value?: unknown;
++  right?: string | null;
++  right_value?: unknown;
++  reason?: string | null;
++  children: RuleNode[];
++}
++
++export interface RuleSetResult {
++  exception_code: string;
++  rule_set_id: string;
++  evaluation_mode: string;
++  logical_passed: boolean;
++  decision: boolean;
++  summary: Summary;
++  blocking_failures: Failure[];
++  executed_rules: ExecutedRule[];
++  result_tree: RuleNode;
++}
++
++export interface EvaluationResponse {
++  decision: boolean;
++  unknown_codes: string[];
++  results: RuleSetResult[];
++}
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/next.config.mjs rule-engine/ui/next.config.mjs
+--- components-empty-1/ui/next.config.mjs	1970-01-01 05:30:00
++++ rule-engine/ui/next.config.mjs	2026-07-21 15:58:00
+@@ -0,0 +1,4 @@
++/** @type {import('next').NextConfig} */
++const nextConfig = {};
++
++export default nextConfig;
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/package-lock.json rule-engine/ui/package-lock.json
+--- components-empty-1/ui/package-lock.json	1970-01-01 05:30:00
++++ rule-engine/ui/package-lock.json	2026-07-21 15:59:34
+@@ -0,0 +1,465 @@
++{
++  "name": "rule-review-ui",
++  "version": "0.1.0",
++  "lockfileVersion": 3,
++  "requires": true,
++  "packages": {
++    "": {
++      "name": "rule-review-ui",
++      "version": "0.1.0",
++      "dependencies": {
++        "next": "14.2.5",
++        "react": "18.3.1",
++        "react-dom": "18.3.1"
++      },
++      "devDependencies": {
++        "@types/node": "20.14.10",
++        "@types/react": "18.3.3",
++        "@types/react-dom": "18.3.0",
++        "typescript": "5.5.4"
++      }
++    },
++    "node_modules/@next/env": {
++      "version": "14.2.5",
++      "resolved": "https://registry.npmjs.org/@next/env/-/env-14.2.5.tgz",
++      "integrity": "sha512-/zZGkrTOsraVfYjGP8uM0p6r0BDT6xWpkjdVbcz66PJVSpwXX3yNiRycxAuDfBKGWBrZBXRuK/YVlkNgxHGwmA=="
++    },
++    "node_modules/@next/swc-darwin-arm64": {
++      "version": "14.2.5",
++      "resolved": "https://registry.npmjs.org/@next/swc-darwin-arm64/-/swc-darwin-arm64-14.2.5.tgz",
++      "integrity": "sha512-/9zVxJ+K9lrzSGli1///ujyRfon/ZneeZ+v4ptpiPoOU+GKZnm8Wj8ELWU1Pm7GHltYRBklmXMTUqM/DqQ99FQ==",
++      "cpu": [
++        "arm64"
++      ],
++      "optional": true,
++      "os": [
++        "darwin"
++      ],
++      "engines": {
++        "node": ">= 10"
++      }
++    },
++    "node_modules/@next/swc-darwin-x64": {
++      "version": "14.2.5",
++      "resolved": "https://registry.npmjs.org/@next/swc-darwin-x64/-/swc-darwin-x64-14.2.5.tgz",
++      "integrity": "sha512-vXHOPCwfDe9qLDuq7U1OYM2wUY+KQ4Ex6ozwsKxp26BlJ6XXbHleOUldenM67JRyBfVjv371oneEvYd3H2gNSA==",
++      "cpu": [
++        "x64"
++      ],
++      "optional": true,
++      "os": [
++        "darwin"
++      ],
++      "engines": {
++        "node": ">= 10"
++      }
++    },
++    "node_modules/@next/swc-linux-arm64-gnu": {
++      "version": "14.2.5",
++      "resolved": "https://registry.npmjs.org/@next/swc-linux-arm64-gnu/-/swc-linux-arm64-gnu-14.2.5.tgz",
++      "integrity": "sha512-vlhB8wI+lj8q1ExFW8lbWutA4M2ZazQNvMWuEDqZcuJJc78iUnLdPPunBPX8rC4IgT6lIx/adB+Cwrl99MzNaA==",
++      "cpu": [
++        "arm64"
++      ],
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">= 10"
++      }
++    },
++    "node_modules/@next/swc-linux-arm64-musl": {
++      "version": "14.2.5",
++      "resolved": "https://registry.npmjs.org/@next/swc-linux-arm64-musl/-/swc-linux-arm64-musl-14.2.5.tgz",
++      "integrity": "sha512-NpDB9NUR2t0hXzJJwQSGu1IAOYybsfeB+LxpGsXrRIb7QOrYmidJz3shzY8cM6+rO4Aojuef0N/PEaX18pi9OA==",
++      "cpu": [
++        "arm64"
++      ],
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">= 10"
++      }
++    },
++    "node_modules/@next/swc-linux-x64-gnu": {
++      "version": "14.2.5",
++      "resolved": "https://registry.npmjs.org/@next/swc-linux-x64-gnu/-/swc-linux-x64-gnu-14.2.5.tgz",
++      "integrity": "sha512-8XFikMSxWleYNryWIjiCX+gU201YS+erTUidKdyOVYi5qUQo/gRxv/3N1oZFCgqpesN6FPeqGM72Zve+nReVXQ==",
++      "cpu": [
++        "x64"
++      ],
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">= 10"
++      }
++    },
++    "node_modules/@next/swc-linux-x64-musl": {
++      "version": "14.2.5",
++      "resolved": "https://registry.npmjs.org/@next/swc-linux-x64-musl/-/swc-linux-x64-musl-14.2.5.tgz",
++      "integrity": "sha512-6QLwi7RaYiQDcRDSU/os40r5o06b5ue7Jsk5JgdRBGGp8l37RZEh9JsLSM8QF0YDsgcosSeHjglgqi25+m04IQ==",
++      "cpu": [
++        "x64"
++      ],
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">= 10"
++      }
++    },
++    "node_modules/@next/swc-win32-arm64-msvc": {
++      "version": "14.2.5",
++      "resolved": "https://registry.npmjs.org/@next/swc-win32-arm64-msvc/-/swc-win32-arm64-msvc-14.2.5.tgz",
++      "integrity": "sha512-1GpG2VhbspO+aYoMOQPQiqc/tG3LzmsdBH0LhnDS3JrtDx2QmzXe0B6mSZZiN3Bq7IOMXxv1nlsjzoS1+9mzZw==",
++      "cpu": [
++        "arm64"
++      ],
++      "optional": true,
++      "os": [
++        "win32"
++      ],
++      "engines": {
++        "node": ">= 10"
++      }
++    },
++    "node_modules/@next/swc-win32-ia32-msvc": {
++      "version": "14.2.5",
++      "resolved": "https://registry.npmjs.org/@next/swc-win32-ia32-msvc/-/swc-win32-ia32-msvc-14.2.5.tgz",
++      "integrity": "sha512-Igh9ZlxwvCDsu6438FXlQTHlRno4gFpJzqPjSIBZooD22tKeI4fE/YMRoHVJHmrQ2P5YL1DoZ0qaOKkbeFWeMg==",
++      "cpu": [
++        "ia32"
++      ],
++      "optional": true,
++      "os": [
++        "win32"
++      ],
++      "engines": {
++        "node": ">= 10"
++      }
++    },
++    "node_modules/@next/swc-win32-x64-msvc": {
++      "version": "14.2.5",
++      "resolved": "https://registry.npmjs.org/@next/swc-win32-x64-msvc/-/swc-win32-x64-msvc-14.2.5.tgz",
++      "integrity": "sha512-tEQ7oinq1/CjSG9uSTerca3v4AZ+dFa+4Yu6ihaG8Ud8ddqLQgFGcnwYls13H5X5CPDPZJdYxyeMui6muOLd4g==",
++      "cpu": [
++        "x64"
++      ],
++      "optional": true,
++      "os": [
++        "win32"
++      ],
++      "engines": {
++        "node": ">= 10"
++      }
++    },
++    "node_modules/@swc/counter": {
++      "version": "0.1.3",
++      "resolved": "https://registry.npmjs.org/@swc/counter/-/counter-0.1.3.tgz",
++      "integrity": "sha512-e2BR4lsJkkRlKZ/qCHPw9ZaSxc0MVUd7gtbtaB7aMvHeJVYe8sOB8DBZkP2DtISHGSku9sCK6T6cnY0CtXrOCQ=="
++    },
++    "node_modules/@swc/helpers": {
++      "version": "0.5.5",
++      "resolved": "https://registry.npmjs.org/@swc/helpers/-/helpers-0.5.5.tgz",
++      "integrity": "sha512-KGYxvIOXcceOAbEk4bi/dVLEK9z8sZ0uBB3Il5b1rhfClSpcX0yfRO0KmTkqR2cnQDymwLB+25ZyMzICg/cm/A==",
++      "dependencies": {
++        "@swc/counter": "^0.1.3",
++        "tslib": "^2.4.0"
++      }
++    },
++    "node_modules/@types/node": {
++      "version": "20.14.10",
++      "resolved": "https://registry.npmjs.org/@types/node/-/node-20.14.10.tgz",
++      "integrity": "sha512-MdiXf+nDuMvY0gJKxyfZ7/6UFsETO7mGKF54MVD/ekJS6HdFtpZFBgrh6Pseu64XTb2MLyFPlbW6hj8HYRQNOQ==",
++      "dev": true,
++      "dependencies": {
++        "undici-types": "~5.26.4"
++      }
++    },
++    "node_modules/@types/prop-types": {
++      "version": "15.7.15",
++      "resolved": "https://registry.npmjs.org/@types/prop-types/-/prop-types-15.7.15.tgz",
++      "integrity": "sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==",
++      "dev": true
++    },
++    "node_modules/@types/react": {
++      "version": "18.3.3",
++      "resolved": "https://registry.npmjs.org/@types/react/-/react-18.3.3.tgz",
++      "integrity": "sha512-hti/R0pS0q1/xx+TsI73XIqk26eBsISZ2R0wUijXIngRK9R/e7Xw/cXVxQK7R5JjW+SV4zGcn5hXjudkN/pLIw==",
++      "dev": true,
++      "dependencies": {
++        "@types/prop-types": "*",
++        "csstype": "^3.0.2"
++      }
++    },
++    "node_modules/@types/react-dom": {
++      "version": "18.3.0",
++      "resolved": "https://registry.npmjs.org/@types/react-dom/-/react-dom-18.3.0.tgz",
++      "integrity": "sha512-EhwApuTmMBmXuFOikhQLIBUn6uFg81SwLMOAUgodJF14SOBOCMdU04gDoYi0WOJJHD144TL32z4yDqCW3dnkQg==",
++      "dev": true,
++      "dependencies": {
++        "@types/react": "*"
++      }
++    },
++    "node_modules/busboy": {
++      "version": "1.6.0",
++      "resolved": "https://registry.npmjs.org/busboy/-/busboy-1.6.0.tgz",
++      "integrity": "sha512-8SFQbg/0hQ9xy3UNTB0YEnsNBbWfhf7RtnzpL7TkBiTBRfrQ9Fxcnz7VJsleJpyp6rVLvXiuORqjlHi5q+PYuA==",
++      "dependencies": {
++        "streamsearch": "^1.1.0"
++      },
++      "engines": {
++        "node": ">=10.16.0"
++      }
++    },
++    "node_modules/caniuse-lite": {
++      "version": "1.0.30001806",
++      "resolved": "https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001806.tgz",
++      "integrity": "sha512-72Cuvd95zbSYPKq6Fhg8eDJRlzgWDf7/mtoZv6Qe/DYNCEBdNxoA3+rZAU2ZhGCpZlns3EssFavaZomckT5Uuw==",
++      "funding": [
++        {
++          "type": "opencollective",
++          "url": "https://opencollective.com/browserslist"
++        },
++        {
++          "type": "tidelift",
++          "url": "https://tidelift.com/funding/github/npm/caniuse-lite"
++        },
++        {
++          "type": "github",
++          "url": "https://github.com/sponsors/ai"
++        }
++      ]
++    },
++    "node_modules/client-only": {
++      "version": "0.0.1",
++      "resolved": "https://registry.npmjs.org/client-only/-/client-only-0.0.1.tgz",
++      "integrity": "sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA=="
++    },
++    "node_modules/csstype": {
++      "version": "3.2.3",
++      "resolved": "https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz",
++      "integrity": "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==",
++      "dev": true
++    },
++    "node_modules/graceful-fs": {
++      "version": "4.2.11",
++      "resolved": "https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.2.11.tgz",
++      "integrity": "sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ=="
++    },
++    "node_modules/js-tokens": {
++      "version": "4.0.0",
++      "resolved": "https://registry.npmjs.org/js-tokens/-/js-tokens-4.0.0.tgz",
++      "integrity": "sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ=="
++    },
++    "node_modules/loose-envify": {
++      "version": "1.4.0",
++      "resolved": "https://registry.npmjs.org/loose-envify/-/loose-envify-1.4.0.tgz",
++      "integrity": "sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==",
++      "dependencies": {
++        "js-tokens": "^3.0.0 || ^4.0.0"
++      },
++      "bin": {
++        "loose-envify": "cli.js"
++      }
++    },
++    "node_modules/nanoid": {
++      "version": "3.3.16",
++      "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.16.tgz",
++      "integrity": "sha512-bzlKTyNJ7+LdGIIwy8ijFpIqEQIvafahV7eYykJ8Cvh42EdJeODoJ6gUJXpQJvej1BddH8OqTXZNE/KfbWAu8Q==",
++      "funding": [
++        {
++          "type": "github",
++          "url": "https://github.com/sponsors/ai"
++        }
++      ],
++      "bin": {
++        "nanoid": "bin/nanoid.cjs"
++      },
++      "engines": {
++        "node": "^10 || ^12 || ^13.7 || ^14 || >=15.0.1"
++      }
++    },
++    "node_modules/next": {
++      "version": "14.2.5",
++      "resolved": "https://registry.npmjs.org/next/-/next-14.2.5.tgz",
++      "integrity": "sha512-0f8aRfBVL+mpzfBjYfQuLWh2WyAwtJXCRfkPF4UJ5qd2YwrHczsrSzXU4tRMV0OAxR8ZJZWPFn6uhSC56UTsLA==",
++      "deprecated": "This version has a security vulnerability. Please upgrade to a patched version. See https://nextjs.org/blog/security-update-2025-12-11 for more details.",
++      "dependencies": {
++        "@next/env": "14.2.5",
++        "@swc/helpers": "0.5.5",
++        "busboy": "1.6.0",
++        "caniuse-lite": "^1.0.30001579",
++        "graceful-fs": "^4.2.11",
++        "postcss": "8.4.31",
++        "styled-jsx": "5.1.1"
++      },
++      "bin": {
++        "next": "dist/bin/next"
++      },
++      "engines": {
++        "node": ">=18.17.0"
++      },
++      "optionalDependencies": {
++        "@next/swc-darwin-arm64": "14.2.5",
++        "@next/swc-darwin-x64": "14.2.5",
++        "@next/swc-linux-arm64-gnu": "14.2.5",
++        "@next/swc-linux-arm64-musl": "14.2.5",
++        "@next/swc-linux-x64-gnu": "14.2.5",
++        "@next/swc-linux-x64-musl": "14.2.5",
++        "@next/swc-win32-arm64-msvc": "14.2.5",
++        "@next/swc-win32-ia32-msvc": "14.2.5",
++        "@next/swc-win32-x64-msvc": "14.2.5"
++      },
++      "peerDependencies": {
++        "@opentelemetry/api": "^1.1.0",
++        "@playwright/test": "^1.41.2",
++        "react": "^18.2.0",
++        "react-dom": "^18.2.0",
++        "sass": "^1.3.0"
++      },
++      "peerDependenciesMeta": {
++        "@opentelemetry/api": {
++          "optional": true
++        },
++        "@playwright/test": {
++          "optional": true
++        },
++        "sass": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/picocolors": {
++      "version": "1.1.1",
++      "resolved": "https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz",
++      "integrity": "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA=="
++    },
++    "node_modules/postcss": {
++      "version": "8.4.31",
++      "resolved": "https://registry.npmjs.org/postcss/-/postcss-8.4.31.tgz",
++      "integrity": "sha512-PS08Iboia9mts/2ygV3eLpY5ghnUcfLV/EXTOW1E2qYxJKGGBUtNjN76FYHnMs36RmARn41bC0AZmn+rR0OVpQ==",
++      "funding": [
++        {
++          "type": "opencollective",
++          "url": "https://opencollective.com/postcss/"
++        },
++        {
++          "type": "tidelift",
++          "url": "https://tidelift.com/funding/github/npm/postcss"
++        },
++        {
++          "type": "github",
++          "url": "https://github.com/sponsors/ai"
++        }
++      ],
++      "dependencies": {
++        "nanoid": "^3.3.6",
++        "picocolors": "^1.0.0",
++        "source-map-js": "^1.0.2"
++      },
++      "engines": {
++        "node": "^10 || ^12 || >=14"
++      }
++    },
++    "node_modules/react": {
++      "version": "18.3.1",
++      "resolved": "https://registry.npmjs.org/react/-/react-18.3.1.tgz",
++      "integrity": "sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ==",
++      "dependencies": {
++        "loose-envify": "^1.1.0"
++      },
++      "engines": {
++        "node": ">=0.10.0"
++      }
++    },
++    "node_modules/react-dom": {
++      "version": "18.3.1",
++      "resolved": "https://registry.npmjs.org/react-dom/-/react-dom-18.3.1.tgz",
++      "integrity": "sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw==",
++      "dependencies": {
++        "loose-envify": "^1.1.0",
++        "scheduler": "^0.23.2"
++      },
++      "peerDependencies": {
++        "react": "^18.3.1"
++      }
++    },
++    "node_modules/scheduler": {
++      "version": "0.23.2",
++      "resolved": "https://registry.npmjs.org/scheduler/-/scheduler-0.23.2.tgz",
++      "integrity": "sha512-UOShsPwz7NrMUqhR6t0hWjFduvOzbtv7toDH1/hIrfRNIDBnnBWd0CwJTGvTpngVlmwGCdP9/Zl/tVrDqcuYzQ==",
++      "dependencies": {
++        "loose-envify": "^1.1.0"
++      }
++    },
++    "node_modules/source-map-js": {
++      "version": "1.2.1",
++      "resolved": "https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz",
++      "integrity": "sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==",
++      "engines": {
++        "node": ">=0.10.0"
++      }
++    },
++    "node_modules/streamsearch": {
++      "version": "1.1.0",
++      "resolved": "https://registry.npmjs.org/streamsearch/-/streamsearch-1.1.0.tgz",
++      "integrity": "sha512-Mcc5wHehp9aXz1ax6bZUyY5afg9u2rv5cqQI3mRrYkGC8rW2hM02jWuwjtL++LS5qinSyhj2QfLyNsuc+VsExg==",
++      "engines": {
++        "node": ">=10.0.0"
++      }
++    },
++    "node_modules/styled-jsx": {
++      "version": "5.1.1",
++      "resolved": "https://registry.npmjs.org/styled-jsx/-/styled-jsx-5.1.1.tgz",
++      "integrity": "sha512-pW7uC1l4mBZ8ugbiZrcIsiIvVx1UmTfw7UkC3Um2tmfUq9Bhk8IiyEIPl6F8agHgjzku6j0xQEZbfA5uSgSaCw==",
++      "dependencies": {
++        "client-only": "0.0.1"
++      },
++      "engines": {
++        "node": ">= 12.0.0"
++      },
++      "peerDependencies": {
++        "react": ">= 16.8.0 || 17.x.x || ^18.0.0-0"
++      },
++      "peerDependenciesMeta": {
++        "@babel/core": {
++          "optional": true
++        },
++        "babel-plugin-macros": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/tslib": {
++      "version": "2.8.1",
++      "resolved": "https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz",
++      "integrity": "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="
++    },
++    "node_modules/typescript": {
++      "version": "5.5.4",
++      "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.5.4.tgz",
++      "integrity": "sha512-Mtq29sKDAEYP7aljRgtPOpTvOfbwRWlS6dPRzwjdE+C0R4brX/GUyhHSecbHMFLNBLcJIPt9nl9yG5TZ1weH+Q==",
++      "dev": true,
++      "bin": {
++        "tsc": "bin/tsc",
++        "tsserver": "bin/tsserver"
++      },
++      "engines": {
++        "node": ">=14.17"
++      }
++    },
++    "node_modules/undici-types": {
++      "version": "5.26.5",
++      "resolved": "https://registry.npmjs.org/undici-types/-/undici-types-5.26.5.tgz",
++      "integrity": "sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==",
++      "dev": true
++    }
++  }
++}
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/package.json rule-engine/ui/package.json
+--- components-empty-1/ui/package.json	1970-01-01 05:30:00
++++ rule-engine/ui/package.json	2026-07-21 15:57:47
+@@ -0,0 +1,21 @@
++{
++  "name": "rule-review-ui",
++  "version": "0.1.0",
++  "private": true,
++  "scripts": {
++    "dev": "next dev",
++    "build": "next build",
++    "start": "next start"
++  },
++  "dependencies": {
++    "next": "14.2.5",
++    "react": "18.3.1",
++    "react-dom": "18.3.1"
++  },
++  "devDependencies": {
++    "typescript": "5.5.4",
++    "@types/node": "20.14.10",
++    "@types/react": "18.3.3",
++    "@types/react-dom": "18.3.0"
++  }
++}
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/tsconfig.json rule-engine/ui/tsconfig.json
+--- components-empty-1/ui/tsconfig.json	1970-01-01 05:30:00
++++ rule-engine/ui/tsconfig.json	2026-07-21 15:57:55
+@@ -0,0 +1,20 @@
++{
++  "compilerOptions": {
++    "target": "ES2020",
++    "lib": ["dom", "dom.iterable", "esnext"],
++    "allowJs": true,
++    "skipLibCheck": true,
++    "strict": true,
++    "noEmit": true,
++    "esModuleInterop": true,
++    "module": "esnext",
++    "moduleResolution": "bundler",
++    "resolveJsonModule": true,
++    "isolatedModules": true,
++    "jsx": "preserve",
++    "incremental": true,
++    "plugins": [{ "name": "next" }]
++  },
++  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
++  "exclude": ["node_modules"]
++}
