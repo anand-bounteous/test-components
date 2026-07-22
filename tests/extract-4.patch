@@ -257,8 +257,8 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +```
 diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/data/all_operators_input.json rule-engine/data/all_operators_input.json
 --- components-empty-1/data/all_operators_input.json	1970-01-01 05:30:00
-+++ rule-engine/data/all_operators_input.json	2026-07-21 12:21:37
-@@ -0,0 +1,36 @@
++++ rule-engine/data/all_operators_input.json	2026-07-22 12:33:10
+@@ -0,0 +1,50 @@
 +{
 +  "documents": {
 +    "INVOICE": {
@@ -270,7 +270,21 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +      "currency": "GBP",
 +      "status": "ISSUED",
 +      "notes": "sdfsdfsdf",
-+      "iban": "GB29NWBK60161331926819"
++      "iban": "GB29NWBK60161331926819",
++      "id": {
++        "name": "Acme Trading Ltd",
++        "registration_no": "GB12345678"
++      },
++      "line_items": [
++        {
++          "description": "Consulting services",
++          "amount": 10000
++        },
++        {
++          "description": "Support",
++          "amount": 5000
++        }
++      ]
 +    },
 +    "CONTRACT": {
 +      "contract_name": "Master Services Agreement",
@@ -511,8 +525,8 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +where = ["src"]
 diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/rules/ALL_OPERATORS_DEMO.json rule-engine/rules/ALL_OPERATORS_DEMO.json
 --- components-empty-1/rules/ALL_OPERATORS_DEMO.json	1970-01-01 05:30:00
-+++ rule-engine/rules/ALL_OPERATORS_DEMO.json	2026-07-21 14:47:53
-@@ -0,0 +1,448 @@
++++ rule-engine/rules/ALL_OPERATORS_DEMO.json	2026-07-22 12:33:10
+@@ -0,0 +1,519 @@
 +{
 +  "rule_set_id": "ALL_OPERATORS_DEMO",
 +  "exception_code": "DEMO001",
@@ -954,6 +968,77 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +              },
 +              "severity": "MEDIUM",
 +              "failure_reason": "Customer relationship starts after the invoice date"
++            }
++          ]
++        },
++        {
++          "rule_id": "RULE033",
++          "description": "Nested & indexed field checks (dotted / list paths)",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "RULE034",
++              "description": "Nested object field present (id.registration_no)",
++              "operator": "not_empty",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "id.registration_no"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": true
++              },
++              "severity": "HIGH",
++              "failure_reason": "Invoice id.registration_no missing"
++            },
++            {
++              "rule_id": "RULE035",
++              "description": "Nested name matches applicant (id.name vs application)",
++              "operator": "equals",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "id.name"
++              },
++              "right_operand": {
++                "source": "APPLICATION",
++                "field": "applicant_name"
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "Invoice id.name does not match applicant name"
++            },
++            {
++              "rule_id": "RULE036",
++              "description": "First line item has a description (line_items[0].description)",
++              "operator": "not_empty",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "line_items[0].description"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": true
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "First line item description missing"
++            },
++            {
++              "rule_id": "RULE037",
++              "description": "First line item amount is positive (line_items[0].amount)",
++              "operator": "greater_than",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "line_items[0].amount"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": 0
++              },
++              "severity": "LOW",
++              "failure_reason": "First line item amount not positive"
 +            }
 +          ]
 +        }
@@ -1642,8 +1727,8 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    sys.exit(service_main())
 diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/context.py rule-engine/src/rule_engine/context.py
 --- components-empty-1/src/rule_engine/context.py	1970-01-01 05:30:00
-+++ rule-engine/src/rule_engine/context.py	2026-07-22 11:20:38
-@@ -0,0 +1,91 @@
++++ rule-engine/src/rule_engine/context.py	2026-07-22 12:31:35
+@@ -0,0 +1,126 @@
 +"""Evaluation context: resolves operand values from the input data.
 +
 +An operand declares a ``source`` and the engine asks the context to resolve
@@ -1659,12 +1744,54 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +
 +from __future__ import annotations
 +
++import re
 +from dataclasses import dataclass, field
-+from typing import Any, Dict
++from typing import Any, Dict, List, Tuple, Union
 +
 +
 +class OperandResolutionError(Exception):
 +    """Raised when an operand is malformed (not merely missing data)."""
++
++
++# A field path may be flat ("counterparty_name"), dotted for nested objects
++# ("id.name"), or indexed for lists ("items[0].name", "a[1][2]").
++_PATH_TOKEN = re.compile(r"[^.\[\]]+|\[(\d+)\]")
++
++
++def _parse_path(path: str) -> List[Union[str, int]]:
++    """Split a field path into keys (str) and list indices (int)."""
++    tokens: List[Union[str, int]] = []
++    for match in _PATH_TOKEN.finditer(path):
++        index = match.group(1)
++        tokens.append(int(index) if index is not None else match.group(0))
++    return tokens
++
++
++def _resolve_path(root: Any, path: str, container: str) -> Tuple[Any, Union[str, None]]:
++    """Walk ``path`` (dotted / indexed) from ``root``.
++
++    Returns ``(value, missing_note)`` — missing_note is None on success, or a
++    message describing where the path could not be followed.
++    """
++    current = root
++    for token in _parse_path(path):
++        if isinstance(token, int):
++            if not isinstance(current, (list, tuple)):
++                return None, (
++                    f"field '{path}' not present in {container} "
++                    f"(expected a list before index [{token}])"
++                )
++            if not -len(current) <= token < len(current):
++                return None, (
++                    f"field '{path}' not present in {container} "
++                    f"(index [{token}] out of range)"
++                )
++            current = current[token]
++        else:
++            if not isinstance(current, dict) or token not in current:
++                return None, f"field '{path}' not present in {container}"
++            current = current[token]
++    return current, None
 +
 +
 +@dataclass
@@ -1705,12 +1832,9 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +                )
 +            if doc_type not in self.documents:
 +                return None, f"document type '{doc_type}' not present in data"
-+            doc = self.documents[doc_type]
-+            if field_name not in doc:
-+                return None, (
-+                    f"field '{field_name}' not present in document '{doc_type}'"
-+                )
-+            return doc[field_name], None
++            return _resolve_path(
++                self.documents[doc_type], field_name, f"document '{doc_type}'"
++            )
 +
 +        if source == "APPLICATION":
 +            field_name = operand.get("field")
@@ -1718,11 +1842,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +                raise OperandResolutionError(
 +                    f"APPLICATION operand needs 'field': {operand!r}"
 +                )
-+            if field_name not in self.application:
-+                return None, (
-+                    f"field '{field_name}' not present in application data"
-+                )
-+            return self.application[field_name], None
++            return _resolve_path(self.application, field_name, "application data")
 +
 +        raise OperandResolutionError(
 +            f"Unknown operand source {source!r}. "
