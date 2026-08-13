@@ -1,4 +1,4 @@
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/.gitignore rule-engine/.gitignore
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/.gitignore rule-engine/.gitignore
 --- components-empty-1/.gitignore	1970-01-01 05:30:00
 +++ rule-engine/.gitignore	2026-07-21 19:08:29
 @@ -0,0 +1,44 @@
@@ -46,10 +46,10 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +.idea/
 +.vscode/
 +*.swp
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/README.md rule-engine/README.md
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/README.md rule-engine/README.md
 --- components-empty-1/README.md	1970-01-01 05:30:00
-+++ rule-engine/README.md	2026-07-22 11:57:38
-@@ -0,0 +1,205 @@
++++ rule-engine/README.md	2026-08-05 14:59:52
+@@ -0,0 +1,281 @@
 +# Rule Engine
 +
 +A small, dependency-free Python engine that evaluates a **tree of rules**
@@ -204,6 +204,57 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +- **Leaf**: has an `operator`, a `left_operand`, an optional `right_operand`,
 +  a `severity` and a `failure_reason`.
 +
++The tree is evaluated **depth-first**, and every node is evaluated — there is no
++short-circuiting, so the audit trail is always complete.
++
++### Gated groups (conditional branches)
++A group may carry a condition of its own — an `operator` with a `left_operand`
++and optional `right_operand`, sitting alongside `logical_operator`. The nested
++rules run only if that condition holds; otherwise the whole subtree is skipped.
++
++```json
++{
++  "rule_id": "GATE010",
++  "description": "US tax checks (only for USD invoices)",
++  "operator": "equals",
++  "left_operand": { "source": "DOCUMENT", "document_type": "INVOICE", "field": "currency" },
++  "right_operand": { "source": "STATIC", "value": "USD" },
++  "failure_reason": "Invoice is not in USD, US tax checks do not apply",
++  "on_condition_fail": "SKIP",
++  "logical_operator": "AND",
++  "rules": [ "...nested rules, only evaluated when the condition holds..." ]
++}
++```
++
++`on_condition_fail` decides what an unmet condition means. Either way the nested
++rules are skipped:
++
++- **`SKIP`** (default) — the branch is *not applicable*. It stays neutral in the
++  enclosing `AND` / `OR` / `NOT` and cannot block the decision. A group whose
++  every child was skipped becomes skipped itself, so the neutrality propagates.
++- **`FAIL`** — the unmet condition *is* the failure. The group fails and the
++  condition is reported as the blocking failure (defaulting to `CRITICAL`
++  severity, so it blocks under `ALL_CRITICAL_MUST_PASS` unless you set a lower
++  `severity` on the group).
++
++A condition that could not be evaluated at all (unknown operator, malformed
++operand) always blocks, whatever the policy — a gate that never ran must not
++silently swallow a branch.
++
++Skipped rules stay in the report with outcome `SKIPPED` and a reason naming the
++gate that shut, so a reviewer can see what was *not* checked and why. The gate
++itself appears in `executed_rules` marked `is_group_condition`.
++
++`rules/GATED_GROUP_DEMO.json` + `data/gated_demo_input.json` are a worked example
++covering every operator, source, logical operator, severity and gate policy —
++including gates that open, gates that shut, sibling gates routing on
++`scenario_type`, a nested gate whose condition never runs, and a group that
++becomes skipped because all of its children were:
++
++```bash
++rule-engine-single rules/GATED_GROUP_DEMO.json data/gated_demo_input.json
++```
++
 +### Operands & sources
 +Each operand declares a `source`; the engine resolves it to a value:
 +
@@ -211,17 +262,39 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +|---------------|------------------------------------------------|
 +| `STATIC`      | the literal `value` in the operand             |
 +| `DOCUMENT`    | `documents[document_type][field]`              |
++| `DOCUMENT`    | `documents[document_type]` — the whole document, when `field` is omitted |
 +| `APPLICATION` | `application[field]`                           |
 +
 +Missing document/application fields resolve to `None` (treated as empty) so a
 +missing value simply fails a `not_empty` check instead of crashing.
 +
-+### Operators
-+`not_empty`, `is_empty`, `equals`, `not_equals`, `contains`, `not_contains`,
-+`starts_with`, `ends_with`, `greater_than`, `less_than`,
-+`greater_than_or_equal`, `less_than_or_equal`, `before`, `after`.
++`STATIC` is a **literal**, never a field name. To test an application field,
++point the operand at it — `{"source": "APPLICATION", "field": "scenario_type"}`
++— rather than putting `"scenario_type"` in a `STATIC` value, which would compare
++the string `"scenario_type"` itself.
 +
-+`is_empty` / `not_empty` are unary — they ignore the right operand.
++Omitting `field` from a `DOCUMENT` operand resolves the whole document, which is
++how you ask whether a document was supplied at all:
++
++```json
++{ "operator": "is_present",
++  "left_operand": { "source": "DOCUMENT", "document_type": "INVOICE" } }
++```
++
++### Operators
++`not_empty`, `is_empty`, `is_present`, `not_present`, `equals`, `not_equals`,
++`contains`, `not_contains`, `starts_with`, `ends_with`, `greater_than`,
++`less_than`, `greater_than_or_equal`, `less_than_or_equal`, `before`, `after`.
++
++`is_empty` / `not_empty` / `is_present` / `not_present` are unary — they ignore
++the right operand.
++
++Presence and emptiness are different questions. `is_present` asks whether the
++operand resolved to anything at all; `not_empty` asks whether what it resolved
++to has content. A document that was supplied but carries no fields is *present*
++and *empty*. An absent document, an absent field and an explicit `null` all
++count as not present.
++
 +Add your own with the `@operator("name")` decorator in `operators.py`.
 +
 +### Evaluation modes
@@ -231,6 +304,9 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +- **`ALL_CRITICAL_MUST_PASS`** — passes as long as no `CRITICAL` leaf failed;
 +  lower-severity failures are recorded as warnings but do not block.
 +- **`STRICT`** — the whole boolean tree must be `True`.
++
++Skipped branches count in neither mode: a rule that never ran can neither
++satisfy a check nor breach one.
 +
 +Add modes in `EVALUATION_MODES` in `engine.py`.
 +
@@ -255,9 +331,9 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +print(report.executed_rules)      # audit trail of every rule that ran
 +print(report.to_dict())           # full serialisable report
 +```
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/data/all_operators_input.json rule-engine/data/all_operators_input.json
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/data/all_operators_input.json rule-engine/data/all_operators_input.json
 --- components-empty-1/data/all_operators_input.json	1970-01-01 05:30:00
-+++ rule-engine/data/all_operators_input.json	2026-07-22 12:33:10
++++ rule-engine/data/all_operators_input.json	2026-08-05 14:59:45
 @@ -0,0 +1,50 @@
 +{
 +  "documents": {
@@ -309,7 +385,66 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    "blacklisted_term": "fraud"
 +  }
 +}
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/data/request_payload.json rule-engine/data/request_payload.json
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/data/gated_demo_input.json rule-engine/data/gated_demo_input.json
+--- components-empty-1/data/gated_demo_input.json	1970-01-01 05:30:00
++++ rule-engine/data/gated_demo_input.json	2026-08-05 14:56:38
+@@ -0,0 +1,55 @@
++{
++  "documents": {
++    "INVOICE": {
++      "counterparty_name": "Acme Trading Ltd",
++      "counterparty_address": "1 High Street, London",
++      "invoice_number": "INV-2024-0007",
++      "invoice_amount": 15000,
++      "invoice_date": "2024-05-10",
++      "currency": "GBP",
++      "status": "ISSUED",
++      "internal_notes": "",
++      "iban": "GB29NWBK60161331926819",
++      "tags": ["verified", "priority"],
++      "id": {
++        "name": "Acme Trading Ltd",
++        "registration_no": "GB12345678"
++      },
++      "line_items": [
++        { "description": "Consulting services", "amount": 10000 },
++        { "description": "Support", "amount": 5000 }
++      ]
++    },
++    "CONTRACT": {
++      "contract_name": "Master Services Agreement",
++      "contract_address": "1 High Street, London",
++      "contract_value": 20000,
++      "start_date": "2024-01-01",
++      "end_date": "2025-12-31",
++      "reference": "CON-ACME-01"
++    },
++    "GIFT_LETTER": {
++      "donor_name": "Jane Doe",
++      "relationship": "Parent",
++      "gift_amount": 15000,
++      "is_repayable": false,
++      "signed_date": "2024-04-20"
++    },
++    "AUDIT_TRAIL": {}
++  },
++  "application": {
++    "scenario_type": "gift",
++    "review_tier": "STANDARD",
++    "applicant_name": "Acme Trading Ltd",
++    "requested_amount": 15000,
++    "currency": "GBP",
++    "customer_since": "2019-03-01",
++    "risk_score": 42,
++    "max_allowed_amount": 50000,
++    "min_amount": 1000,
++    "kyc_verified": true,
++    "sanction_hit": false,
++    "country": "GB",
++    "blacklisted_term": "fraud"
++  }
++}
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/data/request_payload.json rule-engine/data/request_payload.json
 --- components-empty-1/data/request_payload.json	1970-01-01 05:30:00
 +++ rule-engine/data/request_payload.json	2026-07-21 12:26:16
 @@ -0,0 +1,37 @@
@@ -350,7 +485,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    "blacklisted_term": "fraud"
 +  }
 +}
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/data/sample_input.json rule-engine/data/sample_input.json
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/data/sample_input.json rule-engine/data/sample_input.json
 --- components-empty-1/data/sample_input.json	1970-01-01 05:30:00
 +++ rule-engine/data/sample_input.json	2026-07-21 10:35:52
 @@ -0,0 +1,17 @@
@@ -371,7 +506,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    "customer_since": "2019-03-01"
 +  }
 +}
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/main.py rule-engine/main.py
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/main.py rule-engine/main.py
 --- components-empty-1/main.py	1970-01-01 05:30:00
 +++ rule-engine/main.py	2026-07-21 12:04:57
 @@ -0,0 +1,15 @@
@@ -390,7 +525,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +
 +if __name__ == "__main__":
 +    sys.exit(single_main())
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/prompt.md rule-engine/prompt.md
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/prompt.md rule-engine/prompt.md
 --- components-empty-1/prompt.md	1970-01-01 05:30:00
 +++ rule-engine/prompt.md	2026-07-21 12:52:50
 @@ -0,0 +1,100 @@
@@ -494,7 +629,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +
 +**Deliverables.** The package, sample rules in `rules/` (a SOF002 set + a demo
 +using all operators), sample inputs in `data/`, and a `README.md`.
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/pyproject.toml rule-engine/pyproject.toml
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/pyproject.toml rule-engine/pyproject.toml
 --- components-empty-1/pyproject.toml	1970-01-01 05:30:00
 +++ rule-engine/pyproject.toml	2026-07-21 12:30:55
 @@ -0,0 +1,25 @@
@@ -523,9 +658,9 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +
 +[tool.setuptools.packages.find]
 +where = ["src"]
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/rules/ALL_OPERATORS_DEMO.json rule-engine/rules/ALL_OPERATORS_DEMO.json
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/rules/ALL_OPERATORS_DEMO.json rule-engine/rules/ALL_OPERATORS_DEMO.json
 --- components-empty-1/rules/ALL_OPERATORS_DEMO.json	1970-01-01 05:30:00
-+++ rule-engine/rules/ALL_OPERATORS_DEMO.json	2026-07-22 12:33:10
++++ rule-engine/rules/ALL_OPERATORS_DEMO.json	2026-07-30 00:14:20
 @@ -0,0 +1,519 @@
 +{
 +  "rule_set_id": "ALL_OPERATORS_DEMO",
@@ -1046,7 +1181,1015 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    }
 +  ]
 +}
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/rules/SOF002_VERIFICATION.json rule-engine/rules/SOF002_VERIFICATION.json
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/rules/GATED_GROUP_DEMO.json rule-engine/rules/GATED_GROUP_DEMO.json
+--- components-empty-1/rules/GATED_GROUP_DEMO.json	1970-01-01 05:30:00
++++ rule-engine/rules/GATED_GROUP_DEMO.json	2026-08-10 17:34:28
+@@ -0,0 +1,1004 @@
++{
++  "rule_set_id": "GATED_GROUP_DEMO",
++  "exception_code": "DEMO002",
++  "version": "2.0",
++  "evaluation_mode": "ALL_CRITICAL_MUST_PASS",
++  "rules": [
++    {
++      "rule_id": "R000",
++      "description": "Root — full coverage of operators, sources, logical operators and group gates",
++      "logical_operator": "AND",
++      "rules": [
++        {
++          "rule_id": "R100",
++          "description": "Presence and emptiness (unary operators, whole-document operands)",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "R101",
++              "description": "An invoice was supplied (whole-document operand, no field)",
++              "operator": "is_present",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE"
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "No invoice supplied"
++            },
++            {
++              "rule_id": "R102",
++              "description": "No bank statement was supplied (absent document)",
++              "operator": "not_present",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "BANK_STATEMENT"
++              },
++              "severity": "HIGH",
++              "failure_reason": "A bank statement was supplied unexpectedly"
++            },
++            {
++              "rule_id": "R103",
++              "description": "Audit trail was supplied — present even though it has no fields",
++              "operator": "is_present",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "AUDIT_TRAIL"
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "No audit trail supplied"
++            },
++            {
++              "rule_id": "R104",
++              "description": "Audit trail carries no fields — present but empty, unlike R103",
++              "operator": "is_empty",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "AUDIT_TRAIL"
++              },
++              "severity": "LOW",
++              "failure_reason": "Audit trail is not empty"
++            },
++            {
++              "rule_id": "R105",
++              "description": "Counterparty name is present",
++              "operator": "not_empty",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "counterparty_name"
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "Counterparty name missing"
++            },
++            {
++              "rule_id": "R106",
++              "description": "Internal notes are blank (empty string counts as empty)",
++              "operator": "is_empty",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "internal_notes"
++              },
++              "severity": "LOW",
++              "failure_reason": "Internal notes should be blank on a customer-facing invoice"
++            }
++          ]
++        },
++        {
++          "rule_id": "R200",
++          "description": "Equality, string and membership operators",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "R201",
++              "description": "Invoice currency equals application currency (DOCUMENT vs APPLICATION)",
++              "operator": "equals",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "currency"
++              },
++              "right_operand": {
++                "source": "APPLICATION",
++                "field": "currency"
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "Invoice currency does not match application currency"
++            },
++            {
++              "rule_id": "R202",
++              "description": "Invoice is not cancelled (DOCUMENT vs STATIC)",
++              "operator": "not_equals",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "status"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "CANCELLED"
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "Invoice status is CANCELLED"
++            },
++            {
++              "rule_id": "R203",
++              "description": "Counterparty name contains 'Acme' (substring, case-insensitive)",
++              "operator": "contains",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "counterparty_name"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "acme"
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "Counterparty name does not contain the expected token"
++            },
++            {
++              "rule_id": "R204",
++              "description": "Counterparty name holds no blacklisted term",
++              "operator": "not_contains",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "counterparty_name"
++              },
++              "right_operand": {
++                "source": "APPLICATION",
++                "field": "blacklisted_term"
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "Counterparty name contains a blacklisted term"
++            },
++            {
++              "rule_id": "R205",
++              "description": "Tag list includes 'verified' (contains on a list is exact membership)",
++              "operator": "contains",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "tags"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "verified"
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "Invoice is not tagged as verified"
++            },
++            {
++              "rule_id": "R206",
++              "description": "IBAN starts with country code GB",
++              "operator": "starts_with",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "iban"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "GB"
++              },
++              "severity": "HIGH",
++              "failure_reason": "IBAN is not a GB account"
++            },
++            {
++              "rule_id": "R207",
++              "description": "Invoice number ends with 0007",
++              "operator": "ends_with",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_number"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "0007"
++              },
++              "severity": "LOW",
++              "failure_reason": "Invoice number suffix unexpected"
++            }
++          ]
++        },
++        {
++          "rule_id": "R300",
++          "description": "Numeric comparison operators",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "R301",
++              "description": "Max allowed amount exceeds the invoice amount",
++              "operator": "greater_than",
++              "left_operand": {
++                "source": "APPLICATION",
++                "field": "max_allowed_amount"
++              },
++              "right_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_amount"
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "Invoice amount exceeds the max allowed amount"
++            },
++            {
++              "rule_id": "R302",
++              "description": "Invoice amount is below the max allowed amount",
++              "operator": "less_than",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_amount"
++              },
++              "right_operand": {
++                "source": "APPLICATION",
++                "field": "max_allowed_amount"
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "Invoice amount is not below the max allowed amount"
++            },
++            {
++              "rule_id": "R303",
++              "description": "Invoice amount is at least the minimum amount",
++              "operator": "greater_than_or_equal",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_amount"
++              },
++              "right_operand": {
++                "source": "APPLICATION",
++                "field": "min_amount"
++              },
++              "severity": "HIGH",
++              "failure_reason": "Invoice amount is below the minimum"
++            },
++            {
++              "rule_id": "R304",
++              "description": "Risk score is at most 50",
++              "operator": "less_than_or_equal",
++              "left_operand": {
++                "source": "APPLICATION",
++                "field": "risk_score"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": 50
++              },
++              "severity": "HIGH",
++              "failure_reason": "Risk score is too high"
++            }
++          ]
++        },
++        {
++          "rule_id": "R400",
++          "description": "Date operators (invoice falls inside the contract window)",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "R401",
++              "description": "Invoice is dated after the contract start",
++              "operator": "after",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_date"
++              },
++              "right_operand": {
++                "source": "DOCUMENT",
++                "document_type": "CONTRACT",
++                "field": "start_date"
++              },
++              "severity": "HIGH",
++              "failure_reason": "Invoice is dated before the contract start"
++            },
++            {
++              "rule_id": "R402",
++              "description": "Invoice is dated before the contract end",
++              "operator": "before",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_date"
++              },
++              "right_operand": {
++                "source": "DOCUMENT",
++                "document_type": "CONTRACT",
++                "field": "end_date"
++              },
++              "severity": "HIGH",
++              "failure_reason": "Invoice is dated after the contract end"
++            }
++          ]
++        },
++        {
++          "rule_id": "R500",
++          "description": "Nested and indexed field paths (dotted keys, list indices)",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "R501",
++              "description": "Nested object field is present (id.registration_no)",
++              "operator": "not_empty",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "id.registration_no"
++              },
++              "severity": "HIGH",
++              "failure_reason": "Invoice id.registration_no is missing"
++            },
++            {
++              "rule_id": "R502",
++              "description": "Nested name matches the applicant (id.name)",
++              "operator": "equals",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "id.name"
++              },
++              "right_operand": {
++                "source": "APPLICATION",
++                "field": "applicant_name"
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "Invoice id.name does not match the applicant name"
++            },
++            {
++              "rule_id": "R503",
++              "description": "First line item has a description (line_items[0].description)",
++              "operator": "not_empty",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "line_items[0].description"
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "First line item description is missing"
++            },
++            {
++              "rule_id": "R504",
++              "description": "Second line item amount is positive (line_items[1].amount)",
++              "operator": "greater_than",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "line_items[1].amount"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": 0
++              },
++              "severity": "LOW",
++              "failure_reason": "Second line item amount is not positive"
++            }
++          ]
++        },
++        {
++          "rule_id": "R600",
++          "description": "Logical operators: OR and NOT",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "R610",
++              "description": "OR — one branch suffices, so the failing sibling is a warning only",
++              "logical_operator": "OR",
++              "rules": [
++                {
++                  "rule_id": "R611",
++                  "description": "IBAN identifies a GB account",
++                  "operator": "starts_with",
++                  "left_operand": {
++                    "source": "DOCUMENT",
++                    "document_type": "INVOICE",
++                    "field": "iban"
++                  },
++                  "right_operand": {
++                    "source": "STATIC",
++                    "value": "GB"
++                  },
++                  "severity": "CRITICAL",
++                  "failure_reason": "IBAN is not a GB account"
++                },
++                {
++                  "rule_id": "R612",
++                  "description": "Sort code is present (absent here — rescued by R611)",
++                  "operator": "not_empty",
++                  "left_operand": {
++                    "source": "DOCUMENT",
++                    "document_type": "INVOICE",
++                    "field": "sort_code"
++                  },
++                  "severity": "MEDIUM",
++                  "failure_reason": "Sort code is missing"
++                }
++              ]
++            },
++            {
++              "rule_id": "R620",
++              "description": "NOT — passes because its child is false. Children of a NOT must be CRITICAL",
++              "logical_operator": "NOT",
++              "rules": [
++                {
++                  "rule_id": "R621",
++                  "description": "Applicant country is FR (false, which is what NOT needs)",
++                  "operator": "equals",
++                  "left_operand": {
++                    "source": "APPLICATION",
++                    "field": "country"
++                  },
++                  "right_operand": {
++                    "source": "STATIC",
++                    "value": "FR"
++                  },
++                  "severity": "CRITICAL",
++                  "failure_reason": "Applicant country is FR"
++                }
++              ]
++            },
++            {
++              "rule_id": "R630",
++              "description": "NOT wrapping an AND — neither adverse condition holds",
++              "logical_operator": "NOT",
++              "rules": [
++                {
++                  "rule_id": "R631",
++                  "description": "Sanctioned AND unverified (both false, so the NOT passes)",
++                  "logical_operator": "AND",
++                  "rules": [
++                    {
++                      "rule_id": "R632",
++                      "description": "Sanction screening returned a hit",
++                      "operator": "equals",
++                      "left_operand": {
++                        "source": "APPLICATION",
++                        "field": "sanction_hit"
++                      },
++                      "right_operand": {
++                        "source": "STATIC",
++                        "value": true
++                      },
++                      "severity": "CRITICAL",
++                      "failure_reason": "Applicant is flagged by sanction screening"
++                    },
++                    {
++                      "rule_id": "R633",
++                      "description": "KYC is unverified",
++                      "operator": "equals",
++                      "left_operand": {
++                        "source": "APPLICATION",
++                        "field": "kyc_verified"
++                      },
++                      "right_operand": {
++                        "source": "STATIC",
++                        "value": false
++                      },
++                      "severity": "CRITICAL",
++                      "failure_reason": "KYC is not verified"
++                    }
++                  ]
++                }
++              ]
++            }
++          ]
++        },
++        {
++          "rule_id": "R700",
++          "description": "GATE, default SKIP policy, condition HOLDS — high-value invoice checks run",
++          "operator": "greater_than",
++          "left_operand": {
++            "source": "DOCUMENT",
++            "document_type": "INVOICE",
++            "field": "invoice_amount"
++          },
++          "right_operand": {
++            "source": "STATIC",
++            "value": 10000
++          },
++          "failure_reason": "Invoice is not high-value, enhanced checks do not apply",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "R701",
++              "description": "Invoice amount equals the requested amount",
++              "operator": "equals",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_amount"
++              },
++              "right_operand": {
++                "source": "APPLICATION",
++                "field": "requested_amount"
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "Invoice amount does not match the requested amount"
++            },
++            {
++              "rule_id": "R702",
++              "description": "Customer relationship predates the invoice",
++              "operator": "before",
++              "left_operand": {
++                "source": "APPLICATION",
++                "field": "customer_since"
++              },
++              "right_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_date"
++              },
++              "severity": "HIGH",
++              "failure_reason": "Customer relationship starts after the invoice date"
++            }
++          ]
++        },
++        {
++          "rule_id": "R800",
++          "description": "GATE, explicit SKIP policy, condition FAILS — everything below is skipped",
++          "operator": "equals",
++          "left_operand": {
++            "source": "DOCUMENT",
++            "document_type": "INVOICE",
++            "field": "currency"
++          },
++          "right_operand": {
++            "source": "STATIC",
++            "value": "USD"
++          },
++          "failure_reason": "Invoice is not in USD, US tax checks do not apply",
++          "on_condition_fail": "SKIP",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "R801",
++              "description": "US tax identification number is present",
++              "operator": "not_empty",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "us_tax_id"
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "US tax identification number missing"
++            },
++            {
++              "rule_id": "R810",
++              "description": "Nested GATE inside a skipped branch — its own condition never runs",
++              "operator": "is_present",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "W8_BEN"
++              },
++              "failure_reason": "No W-8BEN supplied",
++              "on_condition_fail": "FAIL",
++              "logical_operator": "OR",
++              "rules": [
++                {
++                  "rule_id": "R811",
++                  "description": "Withholding rate is stated",
++                  "operator": "not_empty",
++                  "left_operand": {
++                    "source": "DOCUMENT",
++                    "document_type": "W8_BEN",
++                    "field": "withholding_rate"
++                  },
++                  "severity": "CRITICAL",
++                  "failure_reason": "Withholding rate missing"
++                },
++                {
++                  "rule_id": "R812",
++                  "description": "Treaty exemption is claimed",
++                  "operator": "equals",
++                  "left_operand": {
++                    "source": "DOCUMENT",
++                    "document_type": "W8_BEN",
++                    "field": "treaty_exemption"
++                  },
++                  "right_operand": {
++                    "source": "STATIC",
++                    "value": true
++                  },
++                  "severity": "CRITICAL",
++                  "failure_reason": "No treaty exemption claimed"
++                }
++              ]
++            }
++          ]
++        },
++        {
++          "rule_id": "R900",
++          "description": "GATE, FAIL policy, condition HOLDS — contract cover is verified",
++          "operator": "not_empty",
++          "left_operand": {
++            "source": "DOCUMENT",
++            "document_type": "CONTRACT",
++            "field": "contract_name"
++          },
++          "failure_reason": "No contract supplied, cover cannot be verified",
++          "on_condition_fail": "FAIL",
++          "severity": "CRITICAL",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "R901",
++              "description": "Contract value covers the invoice amount",
++              "operator": "greater_than_or_equal",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "CONTRACT",
++                "field": "contract_value"
++              },
++              "right_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_amount"
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "Contract value does not cover the invoice amount"
++            },
++            {
++              "rule_id": "R902",
++              "description": "Contract reference uses the CON- prefix",
++              "operator": "starts_with",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "CONTRACT",
++                "field": "reference"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "CON-"
++              },
++              "severity": "LOW",
++              "failure_reason": "Contract reference has an unexpected prefix"
++            }
++          ]
++        },
++        {
++          "rule_id": "RA00",
++          "description": "GATE, FAIL policy at LOW severity, condition FAILS — reported but does not block",
++          "operator": "is_present",
++          "left_operand": {
++            "source": "DOCUMENT",
++            "document_type": "BANK_STATEMENT"
++          },
++          "failure_reason": "No bank statement supplied, balance cannot be corroborated",
++          "on_condition_fail": "FAIL",
++          "severity": "LOW",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "RA01",
++              "description": "Closing balance covers the requested amount",
++              "operator": "greater_than_or_equal",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "BANK_STATEMENT",
++                "field": "closing_balance"
++              },
++              "right_operand": {
++                "source": "APPLICATION",
++                "field": "requested_amount"
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "Closing balance does not cover the requested amount"
++            }
++          ]
++        },
++        {
++          "rule_id": "RB00",
++          "description": "Scenario routing — three sibling gates on scenario_type, exactly one opens",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "RB10",
++              "description": "GIFT scenario checks",
++              "operator": "equals",
++              "left_operand": {
++                "source": "APPLICATION",
++                "field": "scenario_type"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "gift"
++              },
++              "failure_reason": "Scenario is not a gift, gift checks do not apply",
++              "logical_operator": "AND",
++              "rules": [
++                {
++                  "rule_id": "RB11",
++                  "description": "A gift letter was supplied",
++                  "operator": "is_present",
++                  "left_operand": {
++                    "source": "DOCUMENT",
++                    "document_type": "GIFT_LETTER"
++                  },
++                  "severity": "CRITICAL",
++                  "failure_reason": "No gift letter supplied"
++                },
++                {
++                  "rule_id": "RB12",
++                  "description": "Gift letter names the donor",
++                  "operator": "not_empty",
++                  "left_operand": {
++                    "source": "DOCUMENT",
++                    "document_type": "GIFT_LETTER",
++                    "field": "donor_name"
++                  },
++                  "severity": "CRITICAL",
++                  "failure_reason": "Gift letter does not name the donor"
++                },
++                {
++                  "rule_id": "RB13",
++                  "description": "Gift amount covers the requested amount",
++                  "operator": "greater_than_or_equal",
++                  "left_operand": {
++                    "source": "DOCUMENT",
++                    "document_type": "GIFT_LETTER",
++                    "field": "gift_amount"
++                  },
++                  "right_operand": {
++                    "source": "APPLICATION",
++                    "field": "requested_amount"
++                  },
++                  "severity": "CRITICAL",
++                  "failure_reason": "Gift amount does not cover the requested amount"
++                },
++                {
++                  "rule_id": "RB14",
++                  "description": "Gift is non-repayable (a repayable gift is a loan)",
++                  "operator": "equals",
++                  "left_operand": {
++                    "source": "DOCUMENT",
++                    "document_type": "GIFT_LETTER",
++                    "field": "is_repayable"
++                  },
++                  "right_operand": {
++                    "source": "STATIC",
++                    "value": false
++                  },
++                  "severity": "CRITICAL",
++                  "failure_reason": "Gift is repayable, so it is a loan"
++                },
++                {
++                  "rule_id": "RB15",
++                  "description": "Gift letter was signed before the invoice date",
++                  "operator": "before",
++                  "left_operand": {
++                    "source": "DOCUMENT",
++                    "document_type": "GIFT_LETTER",
++                    "field": "signed_date"
++                  },
++                  "right_operand": {
++                    "source": "DOCUMENT",
++                    "document_type": "INVOICE",
++                    "field": "invoice_date"
++                  },
++                  "severity": "HIGH",
++                  "failure_reason": "Gift letter is dated after the invoice"
++                },
++                {
++                  "rule_id": "RB16",
++                  "description": "Donor relationship is stated",
++                  "operator": "not_empty",
++                  "left_operand": {
++                    "source": "DOCUMENT",
++                    "document_type": "GIFT_LETTER",
++                    "field": "relationship"
++                  },
++                  "severity": "MEDIUM",
++                  "failure_reason": "Donor relationship is not stated"
++                }
++              ]
++            },
++            {
++              "rule_id": "RB20",
++              "description": "SALARY scenario checks (not this scenario, so skipped)",
++              "operator": "equals",
++              "left_operand": {
++                "source": "APPLICATION",
++                "field": "scenario_type"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "salary"
++              },
++              "failure_reason": "Scenario is not salary, payslip checks do not apply",
++              "logical_operator": "AND",
++              "rules": [
++                {
++                  "rule_id": "RB21",
++                  "description": "A payslip was supplied",
++                  "operator": "is_present",
++                  "left_operand": {
++                    "source": "DOCUMENT",
++                    "document_type": "PAYSLIP"
++                  },
++                  "severity": "CRITICAL",
++                  "failure_reason": "No payslip supplied"
++                },
++                {
++                  "rule_id": "RB22",
++                  "description": "Net pay covers the requested amount",
++                  "operator": "greater_than_or_equal",
++                  "left_operand": {
++                    "source": "DOCUMENT",
++                    "document_type": "PAYSLIP",
++                    "field": "net_pay"
++                  },
++                  "right_operand": {
++                    "source": "APPLICATION",
++                    "field": "requested_amount"
++                  },
++                  "severity": "CRITICAL",
++                  "failure_reason": "Net pay does not cover the requested amount"
++                }
++              ]
++            },
++            {
++              "rule_id": "RB30",
++              "description": "PROPERTY SALE scenario checks (not this scenario, so skipped)",
++              "operator": "equals",
++              "left_operand": {
++                "source": "APPLICATION",
++                "field": "scenario_type"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "property_sale"
++              },
++              "failure_reason": "Scenario is not a property sale, completion checks do not apply",
++              "logical_operator": "AND",
++              "rules": [
++                {
++                  "rule_id": "RB31",
++                  "description": "A completion statement was supplied",
++                  "operator": "is_present",
++                  "left_operand": {
++                    "source": "DOCUMENT",
++                    "document_type": "COMPLETION_STATEMENT"
++                  },
++                  "severity": "CRITICAL",
++                  "failure_reason": "No completion statement supplied"
++                }
++              ]
++            }
++          ]
++        },
++        {
++          "rule_id": "RC00",
++          "description": "Skip propagation — every child gate shuts, so this ungated group is skipped too",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "RC10",
++              "description": "Enhanced review checks (review tier is STANDARD, so skipped)",
++              "operator": "equals",
++              "left_operand": {
++                "source": "APPLICATION",
++                "field": "review_tier"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "ENHANCED"
++              },
++              "failure_reason": "Review tier is not ENHANCED",
++              "logical_operator": "AND",
++              "rules": [
++                {
++                  "rule_id": "RC11",
++                  "description": "Enhanced due diligence reference is recorded",
++                  "operator": "not_empty",
++                  "left_operand": {
++                    "source": "APPLICATION",
++                    "field": "edd_reference"
++                  },
++                  "severity": "CRITICAL",
++                  "failure_reason": "Enhanced due diligence reference missing"
++                }
++              ]
++            },
++            {
++              "rule_id": "RC20",
++              "description": "Non-gift corroboration (a gift letter exists, so skipped)",
++              "operator": "not_present",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "GIFT_LETTER"
++              },
++              "failure_reason": "A gift letter was supplied, so these checks do not apply",
++              "logical_operator": "AND",
++              "rules": [
++                {
++                  "rule_id": "RC21",
++                  "description": "Alternative source-of-funds evidence is referenced",
++                  "operator": "not_empty",
++                  "left_operand": {
++                    "source": "APPLICATION",
++                    "field": "alternative_evidence_ref"
++                  },
++                  "severity": "CRITICAL",
++                  "failure_reason": "No alternative evidence referenced"
++                }
++              ]
++            }
++          ]
++        },
++        {
++          "rule_id": "RD00",
++          "description": "Severity showcase — only CRITICAL blocks under ALL_CRITICAL_MUST_PASS",
++          "logical_operator": "AND",
++          "rules": [
++            {
++              "rule_id": "RD01",
++              "description": "CRITICAL and passing — KYC is verified",
++              "operator": "equals",
++              "left_operand": {
++                "source": "APPLICATION",
++                "field": "kyc_verified"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": true
++              },
++              "severity": "CRITICAL",
++              "failure_reason": "KYC is not verified"
++            },
++            {
++              "rule_id": "RD02",
++              "description": "HIGH and passing — invoice and contract addresses agree",
++              "operator": "equals",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "counterparty_address"
++              },
++              "right_operand": {
++                "source": "DOCUMENT",
++                "document_type": "CONTRACT",
++                "field": "contract_address"
++              },
++              "severity": "HIGH",
++              "failure_reason": "Invoice and contract addresses differ"
++            },
++            {
++              "rule_id": "RD03",
++              "description": "MEDIUM and failing — becomes a warning, not a blocker",
++              "operator": "equals",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "status"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "PAID"
++              },
++              "severity": "MEDIUM",
++              "failure_reason": "Invoice is not marked PAID"
++            },
++            {
++              "rule_id": "RD04",
++              "description": "LOW and failing — becomes a warning, not a blocker",
++              "operator": "ends_with",
++              "left_operand": {
++                "source": "DOCUMENT",
++                "document_type": "INVOICE",
++                "field": "invoice_number"
++              },
++              "right_operand": {
++                "source": "STATIC",
++                "value": "9999"
++              },
++              "severity": "LOW",
++              "failure_reason": "Invoice number does not end with the expected batch suffix"
++            }
++          ]
++        }
++      ]
++    }
++  ]
++}
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/rules/SOF002_VERIFICATION.json rule-engine/rules/SOF002_VERIFICATION.json
 --- components-empty-1/rules/SOF002_VERIFICATION.json	1970-01-01 05:30:00
 +++ rule-engine/rules/SOF002_VERIFICATION.json	2026-07-21 19:05:50
 @@ -0,0 +1,93 @@
@@ -1143,7 +2286,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    }
 +  ]
 +}
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/rules/SOF005_VERIFICATION.json rule-engine/rules/SOF005_VERIFICATION.json
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/rules/SOF005_VERIFICATION.json rule-engine/rules/SOF005_VERIFICATION.json
 --- components-empty-1/rules/SOF005_VERIFICATION.json	1970-01-01 05:30:00
 +++ rule-engine/rules/SOF005_VERIFICATION.json	2026-07-21 12:15:08
 @@ -0,0 +1,47 @@
@@ -1194,7 +2337,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    }
 +  ]
 +}
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/run_service.py rule-engine/run_service.py
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/run_service.py rule-engine/run_service.py
 --- components-empty-1/run_service.py	1970-01-01 05:30:00
 +++ rule-engine/run_service.py	2026-07-21 12:04:48
 @@ -0,0 +1,15 @@
@@ -1213,7 +2356,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +
 +if __name__ == "__main__":
 +    sys.exit(service_main())
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/__init__.py rule-engine/src/rule_engine/__init__.py
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/src/rule_engine/__init__.py rule-engine/src/rule_engine/__init__.py
 --- components-empty-1/src/rule_engine/__init__.py	1970-01-01 05:30:00
 +++ rule-engine/src/rule_engine/__init__.py	2026-07-21 12:05:02
 @@ -0,0 +1,24 @@
@@ -1241,7 +2384,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    "RuleResult",
 +    "EvaluationReport",
 +]
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/api/__init__.py rule-engine/src/rule_engine/api/__init__.py
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/src/rule_engine/api/__init__.py rule-engine/src/rule_engine/api/__init__.py
 --- components-empty-1/src/rule_engine/api/__init__.py	1970-01-01 05:30:00
 +++ rule-engine/src/rule_engine/api/__init__.py	2026-07-21 12:29:57
 @@ -0,0 +1,11 @@
@@ -1256,10 +2399,10 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +from .app import app, create_app
 +
 +__all__ = ["app", "create_app"]
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/api/app.py rule-engine/src/rule_engine/api/app.py
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/src/rule_engine/api/app.py rule-engine/src/rule_engine/api/app.py
 --- components-empty-1/src/rule_engine/api/app.py	1970-01-01 05:30:00
-+++ rule-engine/src/rule_engine/api/app.py	2026-07-21 15:55:19
-@@ -0,0 +1,118 @@
++++ rule-engine/src/rule_engine/api/app.py	2026-08-13 18:34:00
+@@ -0,0 +1,124 @@
 +"""FastAPI application exposing the rule engine as a REST service.
 +
 +Run:
@@ -1297,6 +2440,10 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    def walk(node):
 +        nonlocal n
 +        if "rules" in node:
++            # A group carrying an operator has a gating condition of its own,
++            # which is a condition that gets evaluated like any other.
++            if "operator" in node:
++                n += 1
 +            for c in node["rules"]:
 +                walk(c)
 +        else:
@@ -1357,6 +2504,8 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +            exception_codes=request.exception_codes,
 +            documents=request.documents,
 +            application=request.application,
++            user_statement=request.user_statement,
++            calculated_results=request.calculated_results,
 +        )
 +        return build_response(batch)
 +
@@ -1378,10 +2527,10 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +
 +if __name__ == "__main__":
 +    main()
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/api/builders.py rule-engine/src/rule_engine/api/builders.py
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/src/rule_engine/api/builders.py rule-engine/src/rule_engine/api/builders.py
 --- components-empty-1/src/rule_engine/api/builders.py	1970-01-01 05:30:00
-+++ rule-engine/src/rule_engine/api/builders.py	2026-07-21 19:04:19
-@@ -0,0 +1,90 @@
++++ rule-engine/src/rule_engine/api/builders.py	2026-08-10 18:35:17
+@@ -0,0 +1,151 @@
 +"""Convert engine domain objects into the API response models."""
 +
 +from __future__ import annotations
@@ -1400,40 +2549,100 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +)
 +
 +
-+def _leaf_outcome(leaf: RuleResult, blocking_ids: Set[int]) -> str:
-+    if leaf.error is not None:
++def _leaf_outcome(node: RuleResult, blocking_ids: Set[int]) -> str:
++    if node.error is not None:
 +        return "ERROR"
-+    if leaf.passed:
++    if node.passed:
 +        return "PASS"
-+    return "FAIL" if id(leaf) in blocking_ids else "WARN"
++    return "FAIL" if id(node) in blocking_ids else "WARN"
 +
 +
-+def _build_node(node: RuleResult, blocking_ids: Set[int]) -> RuleNode:
-+    if node.is_group:
-+        group_outcome = "ERROR" if node.error else ("PASS" if node.passed else "FAIL")
++def _group_outcome(node: RuleResult, children: list) -> str:
++    """Outcome of a group, derived from the children *as rendered in the tree*.
++
++    The engine treats a group whose gate shut as "not applicable" and drops it
++    from its parent's AND/OR. The tree does not: such a node is reported FAIL,
++    so here it counts as unsatisfied in its parent exactly like a failed rule,
++    and the failure travels up through the logical operator. Only nodes that
++    never ran (an *ancestor* gate shut) stay neutral.
++    """
++    active = [c for c in children if c.outcome != "SKIPPED"]
++    if not active:
++        # Nothing below this node ran; fall back to the engine's own boolean.
++        return "PASS" if node.passed else "FAIL"
++    satisfied = [c.outcome == "PASS" for c in active]
++    operator = (node.logical_operator or "AND").upper()
++    if operator == "OR":
++        return "PASS" if any(satisfied) else "FAIL"
++    if operator == "NOT":
++        return "PASS" if not satisfied[0] else "FAIL"
++    return "PASS" if all(satisfied) else "FAIL"
++
++
++def _build_node(
++    node: RuleResult, blocking_ids: Set[int], gated_out: bool = False
++) -> RuleNode:
++    """Build the tree view of a result.
++
++    ``gated_out`` means an *ancestor's* gate shut, so nothing here ran and the
++    whole subtree reports SKIPPED. A node's own shut gate does not skip the node
++    itself — it fails it, and skips its children.
++    """
++    if not node.is_group:
++        outcome = "SKIPPED" if gated_out else _leaf_outcome(node, blocking_ids)
 +        return RuleNode(
 +            rule_id=node.rule_id,
 +            description=node.description,
-+            passed=node.passed,
-+            is_group=True,
-+            outcome=group_outcome,
-+            logical_operator=node.logical_operator,
-+            reason=node.error,
-+            children=[_build_node(c, blocking_ids) for c in node.children],
++            passed=outcome == "PASS",
++            is_group=False,
++            outcome=outcome,
++            operator=node.operator,
++            severity=node.severity,
++            left=describe_operand(node.left_operand),
++            left_value=node.left_value,
++            right=describe_operand(node.right_operand),
++            right_value=node.right_value,
++            reason=node.skip_reason if gated_out else (
++                None if node.passed else node.detail()),
++            skipped=gated_out,
 +        )
++
++    # A gated group's condition is flattened onto the group itself: the
++    # operand/operator fields describe the gate, and condition_met says
++    # whether it held.
++    gate = node.condition
++    gate_shut = gate is not None and not gate.passed
++    # The children did not run if this gate shut, or if one above it did.
++    children = [_build_node(c, blocking_ids, gated_out or gate_shut)
++                for c in node.children]
++
++    if gated_out:
++        outcome, reason = "SKIPPED", node.skip_reason
++    elif node.error is not None:
++        outcome, reason = "ERROR", node.error
++    elif gate_shut:
++        # This node's own gate is the failure; the subtree below is skipped.
++        outcome, reason = "FAIL", gate.detail()
++    else:
++        outcome, reason = _group_outcome(node, children), None
++
 +    return RuleNode(
 +        rule_id=node.rule_id,
 +        description=node.description,
-+        passed=node.passed,
-+        is_group=False,
-+        outcome=_leaf_outcome(node, blocking_ids),
-+        operator=node.operator,
-+        severity=node.severity,
-+        left=describe_operand(node.left_operand),
-+        left_value=node.left_value,
-+        right=describe_operand(node.right_operand),
-+        right_value=node.right_value,
-+        reason=None if node.passed else node.detail(),
++        passed=outcome == "PASS",
++        is_group=True,
++        outcome=outcome,
++        logical_operator=node.logical_operator,
++        operator=gate.operator if gate else None,
++        severity=gate.severity if gate else None,
++        left=describe_operand(gate.left_operand) if gate else None,
++        left_value=gate.left_value if gate else None,
++        right=describe_operand(gate.right_operand) if gate else None,
++        right_value=gate.right_value if gate else None,
++        reason=reason,
++        skipped=outcome == "SKIPPED",
++        condition_met=gate.passed if gate else None,
++        children=children,
 +    )
 +
 +
@@ -1445,6 +2654,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +        failed=sum(1 for r in executed if r.outcome == "FAIL"),
 +        warnings=sum(1 for r in executed if r.outcome == "WARN"),
 +        errors=sum(1 for r in executed if r.outcome == "ERROR"),
++        skipped=sum(1 for r in executed if r.outcome == "SKIPPED"),
 +    )
 +    blocking_ids = {id(f) for f in report.blocking_failures}
 +    return RuleSetResult(
@@ -1472,10 +2682,10 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +            for code, report in batch.reports.items()
 +        ],
 +    )
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/api/models.py rule-engine/src/rule_engine/api/models.py
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/src/rule_engine/api/models.py rule-engine/src/rule_engine/api/models.py
 --- components-empty-1/src/rule_engine/api/models.py	1970-01-01 05:30:00
-+++ rule-engine/src/rule_engine/api/models.py	2026-07-21 12:30:17
-@@ -0,0 +1,137 @@
++++ rule-engine/src/rule_engine/api/models.py	2026-08-13 18:33:54
+@@ -0,0 +1,181 @@
 +"""Pydantic request/response models — the typed contract for the UI.
 +
 +These mirror the engine's domain objects but are shaped for consumption by a
@@ -1490,7 +2700,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +from pydantic import BaseModel, Field
 +
 +
-+Outcome = Literal["PASS", "FAIL", "WARN", "ERROR"]
++Outcome = Literal["PASS", "FAIL", "WARN", "ERROR", "SKIPPED"]
 +Severity = Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"]
 +
 +
@@ -1512,6 +2722,20 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +        description="Application data fields (flat key/value bag).",
 +        examples=[{"currency": "GBP", "requested_amount": 15000}],
 +    )
++    user_statement: Dict[str, Any] = Field(
++        default_factory=dict,
++        description="User statement fields (flat key/value bag, same shape as "
++                    "application). Addressed by rules as "
++                    '{"source": "USER_STATEMENT", "field": "..."}.',
++        examples=[{"declared_source": "gift", "declared_amount": 15000}],
++    )
++    calculated_results: Dict[str, Any] = Field(
++        default_factory=dict,
++        description="Values derived upstream — totals, ratios, scores (flat "
++                    "key/value bag). Addressed by rules as "
++                    '{"source": "CALCULATED_RESULTS", "field": "..."}.',
++        examples=[{"total_line_items": 15000, "shortfall_ratio": 0.2}],
++    )
 +
 +    model_config = {
 +        "json_schema_extra": {
@@ -1524,6 +2748,10 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +                                 "contract_address": "1 High Street"},
 +                },
 +                "application": {"currency": "GBP", "requested_amount": 15000},
++                "user_statement": {"declared_source": "gift",
++                                   "declared_amount": 15000},
++                "calculated_results": {"total_line_items": 15000,
++                                       "shortfall_ratio": 0.2},
 +            }]
 +        }
 +    }
@@ -1543,8 +2771,17 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    right: Optional[str] = Field(None, description="Right operand location or static(...)")
 +    right_value: Any = Field(None, description="Resolved right value")
 +    passed: bool
-+    outcome: Outcome = Field(..., description="PASS | FAIL (blocking) | WARN (non-blocking) | ERROR")
++    outcome: Outcome = Field(
++        ...,
++        description="PASS | FAIL (blocking) | WARN (non-blocking) | ERROR | "
++                    "SKIPPED (a group condition above it was not met)",
++    )
 +    reason: Optional[str] = Field(None, description="Failure detail with operand values")
++    is_group_condition: bool = Field(
++        False,
++        description="True when this row is a group's gating condition rather "
++                    "than a rule of its own.",
++    )
 +
 +
 +class Failure(BaseModel):
@@ -1560,11 +2797,18 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    failed: int = Field(..., description="Blocking failures")
 +    warnings: int = Field(..., description="Non-blocking failures")
 +    errors: int
++    skipped: int = Field(0, description="Not evaluated — gated out by a group condition")
 +
 +
 +class RuleNode(BaseModel):
 +    """A node in the rule tree — group (has children) or leaf. For UIs that
-+    want to render the AND/OR hierarchy rather than a flat list."""
++    want to render the AND/OR hierarchy rather than a flat list.
++
++    The condition fields (``operator`` / ``left`` / ``right`` / ``severity``)
++    describe the node's own check: for a leaf that is the rule itself, and for a
++    group it is the gating condition that decides whether the children run.
++    They are null on an ungated group.
++    """
 +    rule_id: str
 +    description: str
 +    passed: bool
@@ -1578,6 +2822,16 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    right: Optional[str] = None
 +    right_value: Any = None
 +    reason: Optional[str] = None
++    skipped: bool = Field(
++        False, description="Node never ran — a group condition above it was not met."
++    )
++    condition_met: Optional[bool] = Field(
++        None,
++        description="For a gated group: whether its gating condition held. "
++                    "False means the children were skipped, which is otherwise "
++                    "indistinguishable from the children having failed. Null "
++                    "when the node has no gating condition.",
++    )
 +    children: List["RuleNode"] = Field(default_factory=list)
 +
 +
@@ -1613,10 +2867,10 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +
 +class RuleSetsResponse(BaseModel):
 +    rule_sets: List[RuleSetInfo]
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/cli.py rule-engine/src/rule_engine/cli.py
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/src/rule_engine/cli.py rule-engine/src/rule_engine/cli.py
 --- components-empty-1/src/rule_engine/cli.py	1970-01-01 05:30:00
-+++ rule-engine/src/rule_engine/cli.py	2026-07-21 12:18:13
-@@ -0,0 +1,108 @@
++++ rule-engine/src/rule_engine/cli.py	2026-08-13 18:34:07
+@@ -0,0 +1,112 @@
 +"""Command-line entry points for the rule engine.
 +
 +Installed as console scripts (see pyproject.toml):
@@ -1656,6 +2910,8 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +        exception_codes=payload.get("exception_codes", []),
 +        documents=payload.get("documents", {}),
 +        application=payload.get("application", {}),
++        user_statement=payload.get("user_statement", {}),
++        calculated_results=payload.get("calculated_results", {}),
 +    )
 +
 +    if args.json:
@@ -1673,8 +2929,10 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +        print(f"  Decision : {'PASS' if report.decision else 'FAIL'}")
 +        print("  Rules executed:")
 +        for r in report.executed_rules:
-+            mark = {"PASS": "✓", "FAIL": "✗", "WARN": "!", "ERROR": "E"}[r["outcome"]]
-+            print(f"    {mark} [{r['outcome']:<4}] {r['rule_id']} "
++            mark = {"PASS": "✓", "FAIL": "✗", "WARN": "!", "ERROR": "E",
++                    "SKIPPED": "·"}[r["outcome"]]
++            gate = " [IF]" if r.get("is_group_condition") else ""
++            print(f"    {mark} [{r['outcome']:<7}] {r['rule_id']}{gate} "
 +                  f"({r['severity']}) — {r['description']}")
 +            if r["reason"]:
 +                print(f"          reason: {r['reason']}")
@@ -1725,18 +2983,22 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +
 +if __name__ == "__main__":
 +    sys.exit(service_main())
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/context.py rule-engine/src/rule_engine/context.py
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/src/rule_engine/context.py rule-engine/src/rule_engine/context.py
 --- components-empty-1/src/rule_engine/context.py	1970-01-01 05:30:00
-+++ rule-engine/src/rule_engine/context.py	2026-07-22 12:31:35
-@@ -0,0 +1,126 @@
++++ rule-engine/src/rule_engine/context.py	2026-08-13 18:35:31
+@@ -0,0 +1,159 @@
 +"""Evaluation context: resolves operand values from the input data.
 +
 +An operand declares a ``source`` and the engine asks the context to resolve
 +it into a concrete value:
 +
-+    STATIC       -> operand["value"]
-+    DOCUMENT     -> documents[document_type][field]
-+    APPLICATION  -> application[field]
++    STATIC          -> operand["value"]
++    DOCUMENT        -> documents[document_type][field]
++                       (omit "field" to resolve the whole document, for
++                        document-level checks like is_present)
++    APPLICATION        -> application[field]
++    USER_STATEMENT     -> user_statement[field]
++    CALCULATED_RESULTS -> calculated_results[field]
 +
 +Missing values resolve to ``None`` (which presence operators treat as empty)
 +rather than raising, so a missing field simply fails a ``not_empty`` check.
@@ -1798,14 +3060,24 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +class EvaluationContext:
 +    """Holds the input data the rules are evaluated against.
 +
-+    documents:   {document_type: {field: value}}
-+                 e.g. {"INVOICE": {"counterparty_name": "Acme Ltd"}}
-+    application: {field: value}
-+                 flat bag of application-level fields.
++    documents:      {document_type: {field: value}}
++                    e.g. {"INVOICE": {"counterparty_name": "Acme Ltd"}}
++    application:    {field: value}
++                    flat bag of application-level fields.
++    user_statement: {field: value}
++                    flat bag of what the customer told us, shaped exactly like
++                    ``application`` but kept separate so a rule can compare the
++                    two (declared vs. evidenced).
++    calculated_results: {field: value}
++                    flat bag of values derived upstream (totals, ratios,
++                    scores), so a rule can test a computed figure without the
++                    engine having to compute it.
 +    """
 +
 +    documents: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 +    application: Dict[str, Any] = field(default_factory=dict)
++    user_statement: Dict[str, Any] = field(default_factory=dict)
++    calculated_results: Dict[str, Any] = field(default_factory=dict)
 +
 +    def resolve(self, operand: Dict[str, Any]) -> Any:
 +        """Return just the resolved value (None if missing)."""
@@ -1826,48 +3098,83 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +        if source == "DOCUMENT":
 +            doc_type = operand.get("document_type")
 +            field_name = operand.get("field")
-+            if not doc_type or not field_name:
++            if not doc_type:
 +                raise OperandResolutionError(
-+                    f"DOCUMENT operand needs 'document_type' and 'field': {operand!r}"
++                    f"DOCUMENT operand needs 'document_type': {operand!r}"
 +                )
 +            if doc_type not in self.documents:
 +                return None, f"document type '{doc_type}' not present in data"
-+            return _resolve_path(
-+                self.documents[doc_type], field_name, f"document '{doc_type}'"
-+            )
++            document = self.documents[doc_type]
++            # No 'field' -> the operand IS the whole document, which is what
++            # document-level checks such as is_present look at.
++            if not field_name:
++                return document, None
++            return _resolve_path(document, field_name, f"document '{doc_type}'")
 +
-+        if source == "APPLICATION":
++        # The flat sources differ only in which bag they read from.
++        flat = self._flat_sources()
++        if source in flat:
++            container, label = flat[source]
 +            field_name = operand.get("field")
 +            if not field_name:
 +                raise OperandResolutionError(
-+                    f"APPLICATION operand needs 'field': {operand!r}"
++                    f"{source} operand needs 'field': {operand!r}"
 +                )
-+            return _resolve_path(self.application, field_name, "application data")
++            return _resolve_path(container, field_name, label)
 +
++        known = ["STATIC", "DOCUMENT", *sorted(flat)]
 +        raise OperandResolutionError(
-+            f"Unknown operand source {source!r}. "
-+            f"Expected STATIC, DOCUMENT or APPLICATION."
++            f"Unknown operand source {source!r}. Expected "
++            f"{', '.join(known[:-1])} or {known[-1]}."
 +        )
++
++    def _flat_sources(self) -> Dict[str, Tuple[Dict[str, Any], str]]:
++        """Sources that are a flat ``{field: value}`` bag, mapped to
++        (data, label-used-in-missing-value-messages)."""
++        return {
++            "APPLICATION": (self.application, "application data"),
++            "USER_STATEMENT": (self.user_statement, "user statement data"),
++            "CALCULATED_RESULTS": (self.calculated_results,
++                                   "calculated results data"),
++        }
 +
 +    @classmethod
 +    def from_dict(cls, data: Dict[str, Any]) -> "EvaluationContext":
 +        return cls(
 +            documents=data.get("documents", {}),
 +            application=data.get("application", {}),
++            user_statement=data.get("user_statement", {}),
++            calculated_results=data.get("calculated_results", {}),
 +        )
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/engine.py rule-engine/src/rule_engine/engine.py
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/src/rule_engine/engine.py rule-engine/src/rule_engine/engine.py
 --- components-empty-1/src/rule_engine/engine.py	1970-01-01 05:30:00
-+++ rule-engine/src/rule_engine/engine.py	2026-07-22 11:51:21
-@@ -0,0 +1,209 @@
++++ rule-engine/src/rule_engine/engine.py	2026-08-10 17:34:28
+@@ -0,0 +1,377 @@
 +"""The rule engine: recursively evaluates a rule tree against a context."""
 +
 +from __future__ import annotations
 +
-+from typing import Any, Callable, Dict
++from typing import Any, Callable, Dict, List, Optional, Tuple
 +
 +from .context import EvaluationContext
 +from .operators import get_operator, has_operator
 +from .result import RuleResult, EvaluationReport, UNARY_OPERATORS
++
++
++# What happens to a group whose own gating condition is NOT met. Set per group
++# with "on_condition_fail". In both cases the nested rules are skipped.
++#   SKIP (default) -> the branch is "not applicable": it stays neutral in the
++#                     enclosing AND / OR / NOT and cannot block the decision.
++#   FAIL           -> the unmet condition is itself a failure: the group fails
++#                     and the condition is reported as the blocking failure.
++ON_CONDITION_FAIL_SKIP = "SKIP"
++ON_CONDITION_FAIL_FAIL = "FAIL"
++ON_CONDITION_FAIL_POLICIES = (ON_CONDITION_FAIL_SKIP, ON_CONDITION_FAIL_FAIL)
++DEFAULT_ON_CONDITION_FAIL = ON_CONDITION_FAIL_SKIP
++
++# Deriving the decision needs three states, not two: a gated-out branch neither
++# satisfies nor blocks anything, so it must not be folded into pass/fail.
++_PASS, _FAIL, _SKIP = "PASS", "FAIL", "SKIP"
 +
 +
 +# Evaluation modes decide the FINAL pass/fail from the result tree.
@@ -1878,54 +3185,76 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +# "blocking" if its position in the AND/OR/NOT tree actually causes a
 +# failure. A False leaf that a sibling OR branch or an enclosing NOT
 +# rescues does not block.
-+def _decision_all_critical(node: RuleResult):
++def _decision_all_critical(node: RuleResult) -> Tuple[str, List[RuleResult]]:
 +    """Block only when a CRITICAL condition is required-but-not-met.
 +
 +    Non-CRITICAL leaves are masked to 'pass' for the purposes of the
 +    decision (they become warnings, not blockers). Returns
-+    (satisfied: bool, blocking_leaves: list).
++    (state: _PASS/_FAIL/_SKIP, blocking_leaves: list).
 +    """
++    # A gated-out node never ran, so it can neither satisfy nor block anything.
++    if node.skipped:
++        return _SKIP, []
++
 +    if node.is_group:
-+        # A group that could not be evaluated (unknown logical operator) blocks.
++        # A group that could not be evaluated (unknown logical operator, bad
++        # on_condition_fail) blocks.
 +        if node.error is not None:
-+            return False, []
++            return _FAIL, []
++        # A gate that did not open under the FAIL policy: the unmet condition
++        # is what blocks, judged on severity exactly like any other leaf.
++        if node.condition is not None and not node.condition.passed:
++            return _decision_all_critical(node.condition)
++
 +        child_results = [_decision_all_critical(c) for c in node.children]
++        # Skipped children are invisible to the combinator: an inapplicable
++        # branch must not satisfy an OR nor drag down an AND.
++        active = [(state, bl) for state, bl in child_results if state != _SKIP]
++        # Every child gated out -> nothing here was actually checked, so this
++        # group is inapplicable too and the skip propagates upward.
++        if node.children and not active:
++            return _SKIP, []
 +        op = node.logical_operator
 +
 +        if op == "OR":
-+            satisfied = any(sat for sat, _ in child_results)
++            satisfied = any(state == _PASS for state, _ in active)
 +            # If satisfied by some branch, nothing blocks. Otherwise every
 +            # branch failed, so surface all their blockers.
-+            blockers = [] if satisfied else [b for _, bl in child_results for b in bl]
-+            return satisfied, blockers
++            blockers = [] if satisfied else [b for _, bl in active for b in bl]
++            return (_PASS if satisfied else _FAIL), blockers
 +
 +        if op == "NOT":
-+            sat, _ = child_results[0] if child_results else (True, [])
++            state = active[0][0] if active else _PASS
 +            # NOT passes when the child is NOT satisfied; there is no
 +            # single leaf to blame when it fails, so report none.
-+            return (not sat), []
++            return (_FAIL if state == _PASS else _PASS), []
 +
 +        # AND (default): all children must be satisfied; collect every blocker.
-+        satisfied = all(sat for sat, _ in child_results)
-+        blockers = [b for _, bl in child_results for b in bl]
-+        return satisfied, blockers
++        satisfied = all(state == _PASS for state, _ in active)
++        blockers = [b for _, bl in active for b in bl]
++        return (_PASS if satisfied else _FAIL), blockers
 +
 +    # A leaf that could not be evaluated (unknown operator, bad data) always
 +    # blocks — you can't pass a check that never ran, regardless of severity.
 +    if node.error is not None:
-+        return False, [node]
++        return _FAIL, [node]
 +    # Otherwise only CRITICAL leaves can block; others are masked to pass.
 +    if node.severity == "CRITICAL":
-+        return node.passed, ([] if node.passed else [node])
-+    return True, []
++        return (_PASS if node.passed else _FAIL), ([] if node.passed else [node])
++    return _PASS, []
 +
 +
 +def _mode_all_critical_must_pass(root: RuleResult):
-+    return _decision_all_critical(root)
++    state, blockers = _decision_all_critical(root)
++    # _SKIP means nothing applied, which is not a failure.
++    return state != _FAIL, blockers
 +
 +
 +def _mode_strict(root: RuleResult):
 +    """The whole boolean tree must evaluate to True; any False leaf blocks."""
++    # A rule set gated out at the root had nothing to violate.
++    if root.skipped:
++        return True, []
 +    return root.passed, root.failed_leaves()
 +
 +
@@ -1933,6 +3262,56 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    "ALL_CRITICAL_MUST_PASS": _mode_all_critical_must_pass,
 +    "STRICT": _mode_strict,
 +}
++
++
++def _is_group(node: Dict[str, Any]) -> bool:
++    """A node is a GROUP if it carries a logical_operator + nested rules,
++    otherwise it is a LEAF with an operator + operands. A group may *also*
++    carry an operator — that is its gating condition, not a leaf check."""
++    return "logical_operator" in node and "rules" in node
++
++
++def _reportable(operand: Optional[Dict[str, Any]], value: Any) -> Any:
++    """What to record in the report for a resolved operand value.
++
++    A whole-document operand (DOCUMENT with no ``field``, used by is_present)
++    resolves to the entire document. Summarise it instead of inlining it: the
++    report is an audit trail, not a second copy of the input.
++    """
++    operand = operand or {}
++    if (operand.get("source") == "DOCUMENT" and not operand.get("field")
++            and isinstance(value, dict)):
++        return (f"<{operand.get('document_type')} document: "
++                f"{len(value)} field(s)>")
++    return value
++
++
++def _skip_subtree(node: Dict[str, Any], note: str) -> RuleResult:
++    """Build unevaluated (skipped) results for a node and its whole subtree.
++
++    The rules are kept in the report rather than dropped, so a reviewer can see
++    exactly which checks did not run and why.
++    """
++    is_group = _is_group(node)
++    result = RuleResult(
++        rule_id=node.get("rule_id", ""),
++        description=node.get("description", ""),
++        passed=False,
++        is_group=is_group,
++        skipped=True,
++        skip_reason=note,
++    )
++    if is_group:
++        result.logical_operator = node.get("logical_operator", "AND").upper()
++        result.children = [_skip_subtree(child, note)
++                           for child in node.get("rules", [])]
++    else:
++        result.operator = node.get("operator")
++        result.severity = node.get("severity")
++        result.failure_reason = node.get("failure_reason")
++        result.left_operand = node.get("left_operand")
++        result.right_operand = node.get("right_operand")
++    return result
 +
 +
 +class RuleEngine:
@@ -1967,9 +3346,11 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +            rule_set_id=self.rule_set_id,
 +            exception_code=self.exception_code,
 +            evaluation_mode=self.evaluation_mode,
-+            logical_passed=root_result.passed,
++            # A tree gated out at the root is not logically false — nothing in
++            # it was asserted.
++            logical_passed=True if root_result.skipped else root_result.passed,
 +            decision=decision,
-+            blocking_failures=blocking_failures,
++            # blocking_failures=blocking_failures,
 +            root=root_result,
 +        )
 +
@@ -1977,9 +3358,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    def _evaluate_node(
 +        self, node: Dict[str, Any], context: EvaluationContext
 +    ) -> RuleResult:
-+        # A node is a GROUP if it carries a logical_operator + nested rules,
-+        # otherwise it is a LEAF with an operator + operands.
-+        if "logical_operator" in node and "rules" in node:
++        if _is_group(node):
 +            return self._evaluate_group(node, context)
 +        return self._evaluate_leaf(node, context)
 +
@@ -1987,17 +3366,57 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +        self, node: Dict[str, Any], context: EvaluationContext
 +    ) -> RuleResult:
 +        logical_operator = node.get("logical_operator", "AND").upper()
++        rule_id = node.get("rule_id", "")
++        description = node.get("description", "")
++
++        # A group may gate its nested rules behind a condition of its own,
++        # declared with operator / left_operand / right_operand sitting next to
++        # logical_operator. No operator on the group -> the nested rules always
++        # run, exactly as before.
++        condition = self._evaluate_condition(node, context)
++        policy, policy_error = self._condition_policy(node)
++        if condition is not None and policy == ON_CONDITION_FAIL_FAIL \
++                and condition.severity is None:
++            # A condition declared as failing is meant to block, so it needs a
++            # severity that blocks under ALL_CRITICAL_MUST_PASS.
++            condition.severity = "CRITICAL"
++
++        if condition is not None and not condition.passed:
++            # The gate is shut: the nested rules do not run at all.
++            # An unevaluable gate (unknown operator, malformed operand) must
++            # never silently swallow a branch — it always blocks.
++            blocks = (policy == ON_CONDITION_FAIL_FAIL
++                      or condition.error is not None)
++            note = (f"not evaluated — condition on '{rule_id}' was not met: "
++                    f"{condition.detail()}")
++            return RuleResult(
++                rule_id=rule_id,
++                description=description,
++                passed=False,
++                is_group=True,
++                logical_operator=logical_operator,
++                condition=condition,
++                children=[_skip_subtree(child, note)
++                          for child in node.get("rules", [])],
++                skipped=not blocks,
++                skip_reason=None if blocks else note,
++                error=policy_error,
++            )
++
 +        children = [self._evaluate_node(child, context)
 +                    for child in node.get("rules", [])]
++        # Skipped children are invisible to the combinator: an inapplicable
++        # branch must not satisfy an OR nor drag down an AND.
++        active = [c for c in children if not c.skipped]
 +
-+        error = None
++        error = policy_error
 +        if logical_operator == "AND":
-+            passed = all(c.passed for c in children)
++            passed = all(c.passed for c in active)
 +        elif logical_operator == "OR":
-+            passed = any(c.passed for c in children)
++            passed = any(c.passed for c in active)
 +        elif logical_operator == "NOT":
 +            # NOT negates its (single) child.
-+            passed = not children[0].passed if children else True
++            passed = not active[0].passed if active else True
 +        else:
 +            passed = False
 +            error = (
@@ -2005,28 +3424,68 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +                f"not be evaluated. Expected AND, OR or NOT."
 +            )
 +
++        if error is not None:
++            passed = False
++        # Every child gated out -> nothing here was actually checked, so this
++        # group is inapplicable too and the skip propagates upward.
++        all_skipped = bool(children) and not active and error is None
++
 +        return RuleResult(
-+            rule_id=node.get("rule_id", ""),
-+            description=node.get("description", ""),
++            rule_id=rule_id,
++            description=description,
 +            passed=passed,
 +            is_group=True,
 +            logical_operator=logical_operator,
++            condition=condition,
 +            children=children,
++            skipped=all_skipped,
++            skip_reason=("not evaluated — every nested rule was gated out"
++                         if all_skipped else None),
 +            error=error,
 +        )
 +
-+    def _evaluate_leaf(
++    def _evaluate_condition(
 +        self, node: Dict[str, Any], context: EvaluationContext
++    ) -> Optional[RuleResult]:
++        """Evaluate a group's gating condition, or None if it has none."""
++        if "operator" not in node:
++            return None
++        return self._evaluate_leaf(node, context, as_condition=True)
++
++    @staticmethod
++    def _condition_policy(node: Dict[str, Any]) -> Tuple[str, Optional[str]]:
++        """Resolve ``on_condition_fail`` to (policy, error). An unrecognised
++        value falls back to the blocking policy and reports an error rather
++        than quietly picking a behaviour the author did not ask for."""
++        raw = node.get("on_condition_fail", DEFAULT_ON_CONDITION_FAIL)
++        policy = str(raw).upper()
++        if policy in ON_CONDITION_FAIL_POLICIES:
++            return policy, None
++        return ON_CONDITION_FAIL_FAIL, (
++            f"Unknown on_condition_fail '{raw}' — expected "
++            f"{' or '.join(ON_CONDITION_FAIL_POLICIES)}."
++        )
++
++    def _evaluate_leaf(
++        self,
++        node: Dict[str, Any],
++        context: EvaluationContext,
++        as_condition: bool = False,
 +    ) -> RuleResult:
++        """Evaluate a single condition. ``as_condition`` marks the result as a
++        group's gate rather than a rule in its own right; either way the
++        operator / operand handling is identical."""
 +        operator_name = node["operator"]
 +        result = RuleResult(
 +            rule_id=node.get("rule_id", ""),
 +            description=node.get("description", ""),
 +            passed=False,
 +            is_group=False,
++            is_condition=as_condition,
 +            operator=operator_name,
 +            severity=node.get("severity"),
-+            failure_reason=node.get("failure_reason"),
++            failure_reason=node.get("failure_reason") or (
++                "Group condition not met" if as_condition else None),
 +            left_operand=node.get("left_operand"),
 +            right_operand=node.get("right_operand"),
 +        )
@@ -2049,8 +3508,8 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +                    node["right_operand"])
 +            else:
 +                right, right_missing = None, None
-+            result.left_value = left
-+            result.right_value = right
++            result.left_value = _reportable(node.get("left_operand"), left)
++            result.right_value = _reportable(node.get("right_operand"), right)
 +            result.left_missing = left_missing
 +            result.right_missing = right_missing
 +
@@ -2068,10 +3527,10 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +            result.error = f"{type(exc).__name__}: {exc}"
 +
 +        return result
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/operators.py rule-engine/src/rule_engine/operators.py
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/src/rule_engine/operators.py rule-engine/src/rule_engine/operators.py
 --- components-empty-1/src/rule_engine/operators.py	1970-01-01 05:30:00
-+++ rule-engine/src/rule_engine/operators.py	2026-07-22 11:51:29
-@@ -0,0 +1,222 @@
++++ rule-engine/src/rule_engine/operators.py	2026-08-05 14:29:42
+@@ -0,0 +1,236 @@
 +"""Operator registry.
 +
 +Each operator is a function ``(left, right) -> bool``. Unary operators
@@ -2192,6 +3651,20 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    return _is_empty(left)
 +
 +
++# Presence is about whether the operand resolved to anything at all, which is a
++# different question from emptiness: a document that was supplied but carries no
++# fields is *present* and *empty*. Point the left operand at a document with no
++# "field" to ask whether that document was supplied at all.
++@operator("is_present")
++def is_present(left: Any, right: Any) -> bool:  # right ignored (unary)
++    return left is not None
++
++
++@operator("not_present")
++def not_present(left: Any, right: Any) -> bool:  # right ignored (unary)
++    return left is None
++
++
 +# --------------------------------------------------------------------------
 +# Equality
 +# --------------------------------------------------------------------------
@@ -2294,7 +3767,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +def after(left: Any, right: Any) -> bool:
 +    pair = _dates(left, right)
 +    return pair is not None and pair[0] > pair[1]
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/repository.py rule-engine/src/rule_engine/repository.py
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/src/rule_engine/repository.py rule-engine/src/rule_engine/repository.py
 --- components-empty-1/src/rule_engine/repository.py	1970-01-01 05:30:00
 +++ rule-engine/src/rule_engine/repository.py	2026-07-21 11:55:53
 @@ -0,0 +1,64 @@
@@ -2362,10 +3835,10 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +
 +    def codes(self) -> List[str]:
 +        return sorted(self._by_code)
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/result.py rule-engine/src/rule_engine/result.py
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/src/rule_engine/result.py rule-engine/src/rule_engine/result.py
 --- components-empty-1/src/rule_engine/result.py	1970-01-01 05:30:00
-+++ rule-engine/src/rule_engine/result.py	2026-07-22 11:21:01
-@@ -0,0 +1,185 @@
++++ rule-engine/src/rule_engine/result.py	2026-08-13 18:33:15
+@@ -0,0 +1,255 @@
 +"""Result objects returned by the engine."""
 +
 +from __future__ import annotations
@@ -2374,19 +3847,35 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +from typing import Any, Dict, List, Optional
 +
 +# Operators that only look at the left operand; the right side is ignored.
-+UNARY_OPERATORS = {"not_empty", "is_empty"}
++# These also handle a missing left value themselves, so the engine must not
++# short-circuit them when the operand could not be resolved — for the presence
++# operators, "could not be resolved" *is* the answer.
++UNARY_OPERATORS = {"not_empty", "is_empty", "is_present", "not_present"}
++
++
++# Flat operand sources, mapped to the prefix used when naming them in a report
++# (e.g. APPLICATION + "currency" -> "application.currency").
++FLAT_SOURCE_PREFIXES = {
++    "APPLICATION": "application",
++    "USER_STATEMENT": "user_statement",
++    "CALCULATED_RESULTS": "calculated_results",
++}
 +
 +
 +def describe_operand(operand: Optional[Dict[str, Any]]) -> Optional[str]:
 +    """Human-readable location of an operand, e.g. ``INVOICE.counterparty_name``
-+    for a document field or ``application.currency`` for an application field."""
++    for a document field, ``INVOICE`` for a whole document, or
++    ``application.currency`` for an application field."""
 +    if not operand:
 +        return None
 +    source = operand.get("source")
 +    if source == "DOCUMENT":
-+        return f"{operand.get('document_type')}.{operand.get('field')}"
-+    if source == "APPLICATION":
-+        return f"application.{operand.get('field')}"
++        field = operand.get("field")
++        document_type = operand.get("document_type")
++        # No field -> the operand is the document itself.
++        return f"{document_type}.{field}" if field else str(document_type)
++    if source in FLAT_SOURCE_PREFIXES:
++        return f"{FLAT_SOURCE_PREFIXES[source]}.{operand.get('field')}"
 +    if source == "STATIC":
 +        return f"static({operand.get('value')!r})"
 +    return str(source)
@@ -2412,6 +3901,16 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    right_missing: Optional[str] = None           # why the right value was missing
 +    children: List["RuleResult"] = field(default_factory=list)
 +    error: Optional[str] = None                   # set if evaluation errored
++    # A group may gate its nested rules behind its own condition (operator +
++    # operands declared alongside logical_operator). This holds the result of
++    # that condition; None for leaves and for ungated groups.
++    condition: Optional["RuleResult"] = None
++    # True on the RuleResult of a group's gating condition itself.
++    is_condition: bool = False
++    # True when the node never ran because a gating condition on it, or on one
++    # of its ancestors, was not met.
++    skipped: bool = False
++    skip_reason: Optional[str] = None
 +
 +    def detail(self) -> Optional[str]:
 +        """A failure message that names the operand(s) involved and their
@@ -2422,6 +3921,13 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +        """
 +        if self.error is not None:
 +            return self.error
++        if self.skipped:
++            return self.skip_reason
++        # A gated group that did not open explains itself through its gate.
++        if self.condition is not None and not self.condition.passed:
++            return self.condition.detail()
++        if self.is_group:
++            return None      # a group's reasons live on its children
 +        base = self.failure_reason or "Condition not met"
 +        left = describe_operand(self.left_operand)
 +        if left is None:
@@ -2437,8 +3943,14 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +        return f"{base} ({detail})"
 +
 +    def iter_leaves(self) -> List["RuleResult"]:
-+        """Return every leaf result in evaluation order (depth-first)."""
++        """Return every leaf result in evaluation order (depth-first).
++
++        A group's gating condition is itself a condition that ran, so it is
++        emitted just before the children it gates.
++        """
 +        out: List[RuleResult] = []
++        if self.condition is not None:
++            out.append(self.condition)
 +        if self.is_group:
 +            for child in self.children:
 +                out.extend(child.iter_leaves())
@@ -2449,13 +3961,21 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    def failed_leaves(self, severity: Optional[str] = None) -> List["RuleResult"]:
 +        """Flatten the tree and return failing leaf results.
 +
-+        If ``severity`` is given, only leaves of that severity are returned.
++        Skipped nodes never ran, so they are not failures — and neither is the
++        gate of a skipped group: an unmet SKIP-policy condition is a statement
++        about applicability, not a breach. If ``severity`` is given, only leaves
++        of that severity are returned.
 +        """
 +        out: List[RuleResult] = []
++        if self.skipped:
++            return out
++        if self.condition is not None and not self.condition.passed:
++            if severity is None or self.condition.severity == severity:
++                out.append(self.condition)
 +        if self.is_group:
 +            for child in self.children:
 +                out.extend(child.failed_leaves(severity))
-+        elif not self.passed:
++        elif not self.passed and not self.skipped:
 +            if severity is None or self.severity == severity:
 +                out.append(self)
 +        return out
@@ -2466,8 +3986,23 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +            "description": self.description,
 +            "passed": self.passed,
 +        }
++        if self.skipped:
++            d["skipped"] = True
++            d["skip_reason"] = self.skip_reason
 +        if self.is_group:
 +            d["logical_operator"] = self.logical_operator
++            # A gated group's condition is flattened onto the group: the
++            # operator/operand keys describe the gate, and condition_met says
++            # whether it held (which is what decides if the children ran).
++            if self.condition is not None:
++                gate = self.condition
++                d["operator"] = gate.operator
++                d["severity"] = gate.severity
++                d["left_value"] = gate.left_value
++                d["right_value"] = gate.right_value
++                d["condition_met"] = gate.passed
++                if not gate.passed:
++                    d["failure_reason"] = gate.failure_reason
 +            d["children"] = [c.to_dict() for c in self.children]
 +        else:
 +            d["operator"] = self.operator
@@ -2503,12 +4038,19 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +
 +    @property
 +    def executed_rules(self) -> List[Dict[str, Any]]:
-+        """Flat, ordered list of every rule (condition) that was evaluated,
-+        with its description and outcome — the audit trail of the run."""
++        """Flat, ordered list of every condition in the rule set, with its
++        outcome — the audit trail of the run.
++
++        Includes group gating conditions (marked ``is_group_condition``) and
++        conditions that never ran because a gate closed above them (outcome
++        ``SKIPPED``), so a reviewer can see what was *not* checked and why.
++        """
 +        blocking_ids = {id(f) for f in self.blocking_failures}
 +        rows: List[Dict[str, Any]] = []
 +        for leaf in self.root.iter_leaves():
-+            if leaf.error is not None:
++            if leaf.skipped:
++                outcome = "SKIPPED"    # gated out; never evaluated
++            elif leaf.error is not None:
 +                outcome = "ERROR"
 +            elif leaf.passed:
 +                outcome = "PASS"
@@ -2528,6 +4070,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +                "passed": leaf.passed,
 +                "outcome": outcome,
 +                "reason": leaf.detail() if not leaf.passed else None,
++                "is_group_condition": leaf.is_condition,
 +            })
 +        return rows
 +
@@ -2551,16 +4094,18 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +            ],
 +            "result_tree": self.root.to_dict(),
 +        }
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/src/rule_engine/service.py rule-engine/src/rule_engine/service.py
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/src/rule_engine/service.py rule-engine/src/rule_engine/service.py
 --- components-empty-1/src/rule_engine/service.py	1970-01-01 05:30:00
-+++ rule-engine/src/rule_engine/service.py	2026-07-22 11:51:38
-@@ -0,0 +1,97 @@
++++ rule-engine/src/rule_engine/service.py	2026-08-13 18:33:38
+@@ -0,0 +1,105 @@
 +"""The library facade the host application talks to.
 +
 +The application supplies:
 +  * one or more exception codes,
 +  * the extracted document fields,
 +  * the application data fields,
++  * optionally, the user statement fields,
++  * optionally, values calculated upstream,
 +
 +and gets back a BatchResult: one EvaluationReport per exception code, plus
 +an overall decision and the list of any codes that had no rule set.
@@ -2574,6 +4119,8 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +        exception_codes=["SOF002", "DEMO001"],
 +        documents={"INVOICE": {"counterparty_name": "Acme", ...}},
 +        application={"currency": "GBP", ...},
++        user_statement={"declared_source": "gift", ...},
++        calculated_results={"total_line_items": 15000, ...},
 +    )
 +
 +    result.decision          # overall pass/fail (all codes must pass)
@@ -2623,10 +4170,14 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +        exception_codes: List[str],
 +        documents: Dict[str, Dict[str, Any]] | None = None,
 +        application: Dict[str, Any] | None = None,
++        user_statement: Dict[str, Any] | None = None,
++        calculated_results: Dict[str, Any] | None = None,
 +    ) -> BatchResult:
 +        context = EvaluationContext(
 +            documents=documents or {},
 +            application=application or {},
++            user_statement=user_statement or {},
++            calculated_results=calculated_results or {},
 +        )
 +
 +        reports: Dict[str, EvaluationReport] = {}
@@ -2652,7 +4203,12 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +            reports=reports,
 +            unknown_codes=unknown,
 +        )
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/.gitignore rule-engine/ui/.gitignore
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/ui/.env.local rule-engine/ui/.env.local
+--- components-empty-1/ui/.env.local	1970-01-01 05:30:00
++++ rule-engine/ui/.env.local	2026-07-21 16:00:35
+@@ -0,0 +1 @@
++NEXT_PUBLIC_RULE_ENGINE_URL=http://127.0.0.1:8080
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/ui/.gitignore rule-engine/ui/.gitignore
 --- components-empty-1/ui/.gitignore	1970-01-01 05:30:00
 +++ rule-engine/ui/.gitignore	2026-07-21 15:58:19
 @@ -0,0 +1,6 @@
@@ -2662,7 +4218,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +next-env.d.ts
 +*.tsbuildinfo
 +.env.local
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/README.md rule-engine/ui/README.md
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/ui/README.md rule-engine/ui/README.md
 --- components-empty-1/ui/README.md	1970-01-01 05:30:00
 +++ rule-engine/ui/README.md	2026-07-22 11:57:52
 @@ -0,0 +1,93 @@
@@ -2759,7 +4315,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +- **Hierarchy** — the nested AND/OR/NOT tree, expandable from the root. Branches
 +  containing a failure or warning open automatically; fully-passing branches
 +  start collapsed so attention goes to what matters.
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/app/layout.tsx rule-engine/ui/app/layout.tsx
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/ui/app/layout.tsx rule-engine/ui/app/layout.tsx
 --- components-empty-1/ui/app/layout.tsx	1970-01-01 05:30:00
 +++ rule-engine/ui/app/layout.tsx	2026-07-21 15:58:07
 @@ -0,0 +1,14 @@
@@ -2777,10 +4333,10 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    </html>
 +  );
 +}
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/app/page.tsx rule-engine/ui/app/page.tsx
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/ui/app/page.tsx rule-engine/ui/app/page.tsx
 --- components-empty-1/ui/app/page.tsx	1970-01-01 05:30:00
-+++ rule-engine/ui/app/page.tsx	2026-07-21 18:49:07
-@@ -0,0 +1,101 @@
++++ rule-engine/ui/app/page.tsx	2026-08-13 18:34:14
+@@ -0,0 +1,103 @@
 +"use client";
 +
 +// Example App Router page (app/review/page.tsx) that calls the API and shows
@@ -2806,6 +4362,8 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    },
 +  },
 +  application: { currency: "GBP", requested_amount: 15000 },
++  user_statement: { declared_source: "gift", declared_amount: 15000 },
++  calculated_results: { total_line_items: 15000, shortfall_ratio: 0.2 },
 +};
 +
 +export default function ReviewPage() {
@@ -2882,10 +4440,10 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    </main>
 +  );
 +}
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/components/RuleReview/RuleReview.tsx rule-engine/ui/components/RuleReview/RuleReview.tsx
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/ui/components/RuleReview/RuleReview.tsx rule-engine/ui/components/RuleReview/RuleReview.tsx
 --- components-empty-1/ui/components/RuleReview/RuleReview.tsx	1970-01-01 05:30:00
-+++ rule-engine/ui/components/RuleReview/RuleReview.tsx	2026-07-21 18:48:35
-@@ -0,0 +1,356 @@
++++ rule-engine/ui/components/RuleReview/RuleReview.tsx	2026-08-05 14:47:36
+@@ -0,0 +1,418 @@
 +"use client";
 +
 +/**
@@ -2988,7 +4546,9 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +  const rows = useMemo(
 +    () =>
 +      onlyIssues
-+        ? result.executed_rules.filter((r) => r.outcome !== "PASS")
++        ? result.executed_rules.filter(
++            (r) => r.outcome !== "PASS" && r.outcome !== "SKIPPED"
++          )
 +        : result.executed_rules,
 +    [onlyIssues, result.executed_rules]
 +  );
@@ -3018,6 +4578,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +        <Kpi label="Blocking" value={s.failed} tone="fail" />
 +        <Kpi label="Warnings" value={s.warnings} tone="warn" />
 +        <Kpi label="Errors" value={s.errors} tone="error" />
++        <Kpi label="Skipped" value={s.skipped ?? 0} tone="skip" />
 +      </div>
 +
 +      {result.blocking_failures.length > 0 && (
@@ -3105,18 +4666,24 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +
 +/* --------------------------------------------------------------- Row */
 +function RuleRow({ rule }: { rule: ExecutedRule }) {
-+  const check =
-+    rule.left && rule.right
-+      ? `${rule.left} ${rule.operator} ${rule.right}`
-+      : `${rule.left ?? ""} ${rule.operator}`;
++  const check = checkOf(rule);
++  const cls =
++    rule.outcome === "SKIPPED"
++      ? "skipped"
++      : rule.outcome !== "PASS"
++      ? "issue"
++      : "";
 +
 +  return (
-+    <tr className={rule.outcome !== "PASS" ? "issue" : ""}>
++    <tr className={cls}>
 +      <td>
 +        <StatusPill outcome={rule.outcome} />
 +      </td>
 +      <td>
-+        <div className="rid">{rule.rule_id}</div>
++        <div className="rid">
++          {rule.rule_id}
++          {rule.is_group_condition && <span className="gate">IF</span>}
++        </div>
 +        <div className="rdesc">{rule.description}</div>
 +      </td>
 +      <td>
@@ -3138,39 +4705,62 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +}
 +
 +/* ---------------------------------------------------------------- Tree */
++// A skipped branch is informational, not an issue: it never ran, so it should
++// not pull attention away from what actually failed.
 +function subtreeHasIssue(node: RuleNode): boolean {
++  if (node.outcome === "SKIPPED") return false;
++  if (node.outcome === "FAIL" || node.outcome === "ERROR") return true;
 +  if (!node.is_group) return node.outcome !== "PASS";
 +  return node.children.some(subtreeHasIssue);
 +}
 +
++/** Count the conditions in a subtree that never ran. */
++function countSkipped(node: RuleNode): number {
++  if (!node.is_group) return node.outcome === "SKIPPED" ? 1 : 0;
++  return node.children.reduce((n, c) => n + countSkipped(c), 0);
++}
++
++/**
++ * Status of a group's gating condition. `condition_met` is what disambiguates a
++ * shut gate from failed contents — both leave the group with `outcome: "FAIL"`
++ * under the FAIL policy. A shut gate that merely skipped the branch is a
++ * statement about applicability (WARN); one that failed the group blocks (FAIL).
++ */
++function gateOutcome(node: RuleNode): Outcome {
++  if (node.condition_met) return "PASS";
++  return node.skipped ? "WARN" : "FAIL";
++}
++
 +function TreeNode({ node, depth }: { node: RuleNode; depth: number }) {
 +  // Open the root and any branch that contains a failure/warning; collapse
-+  // fully-passing branches so attention goes to what matters.
++  // fully-passing and gated-out branches so attention goes to what matters.
 +  const [open, setOpen] = useState(depth === 0 || subtreeHasIssue(node));
 +  const indent = { paddingLeft: depth * 18 };
 +
 +  if (!node.is_group) {
-+    const check =
-+      node.left && node.right
-+        ? `${node.left} ${node.operator} ${node.right}`
-+        : `${node.left ?? ""} ${node.operator}`;
 +    return (
-+      <div className="tnode leaf" style={indent}>
++      <div className={`tnode leaf ${node.skipped ? "skipped" : ""}`} style={indent}>
 +        <span className="tspacer" aria-hidden />
 +        <StatusPill outcome={node.outcome} />
 +        <span className="tid">{node.rule_id}</span>
 +        <span className="tdesc">{node.description}</span>
 +        <SeverityTag severity={node.severity} />
-+        <span className="tcheck">{check.trim()}</span>
++        <span className="tcheck">{checkOf(node)}</span>
 +        {node.reason && <span className="treason">{node.reason}</span>}
 +      </div>
 +    );
 +  }
 +
++  // A gate that did not open tells the reviewer why the branch was not
++  // checked, so it stays visible even while the branch is collapsed.
++  const gated = node.condition_met != null;
++  const gateShut = node.condition_met === false;
++  const hidden = gateShut ? countSkipped(node) : 0;
++
 +  return (
 +    <div className="tgroup">
 +      <button
-+        className="tnode group"
++        className={`tnode group ${node.skipped ? "skipped" : ""}`}
 +        style={indent}
 +        onClick={() => setOpen((o) => !o)}
 +        aria-expanded={open}
@@ -3185,6 +4775,25 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +        <span className="tdesc">{node.description}</span>
 +        <span className="tid dim">{node.rule_id}</span>
 +      </button>
++
++      {gated && (
++        <div
++          className={`tnode cond ${gateShut ? "shut" : ""}`}
++          style={{ paddingLeft: (depth + 1) * 18 }}
++        >
++          <span className="tspacer" aria-hidden />
++          <span className="gate">IF</span>
++          <StatusPill outcome={gateOutcome(node)} />
++          <span className="tcheck">{checkOf(node)}</span>
++          {gateShut && (
++            <span className="treason">
++              {node.reason} — {hidden} nested rule
++              {hidden === 1 ? "" : "s"} skipped
++            </span>
++          )}
++        </div>
++      )}
++
 +      {open && (
 +        <div className="tchildren">
 +          {node.children.map((c) => (
@@ -3203,6 +4812,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    FAIL: { icon: "✗", label: "Fail", cls: "fail" },
 +    WARN: { icon: "!", label: "Warn", cls: "warn" },
 +    ERROR: { icon: "⚠", label: "Error", cls: "error" },
++    SKIPPED: { icon: "⊘", label: "Skipped", cls: "skip" },
 +  };
 +  const m = map[outcome];
 +  return (
@@ -3225,7 +4835,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +}: {
 +  label: string;
 +  value: number;
-+  tone: "neutral" | "pass" | "fail" | "warn" | "error";
++  tone: "neutral" | "pass" | "fail" | "warn" | "error" | "skip";
 +}) {
 +  return (
 +    <div className={`kpi ${tone}`}>
@@ -3235,6 +4845,16 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +  );
 +}
 +
++/** Render a condition as `left operator right` (right is absent for unary ops). */
++function checkOf(c: {
++  left?: string | null;
++  right?: string | null;
++  operator?: string | null;
++}): string {
++  const parts = c.right ? [c.left, c.operator, c.right] : [c.left, c.operator];
++  return parts.filter(Boolean).join(" ");
++}
++
 +/* Format a resolved operand value for display. */
 +function fmt(v: unknown): string {
 +  if (v === null || v === undefined) return "None";
@@ -3242,7 +4862,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +  if (typeof v === "object") return JSON.stringify(v);
 +  return String(v);
 +}
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/components/RuleReview/index.ts rule-engine/ui/components/RuleReview/index.ts
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/ui/components/RuleReview/index.ts rule-engine/ui/components/RuleReview/index.ts
 --- components-empty-1/ui/components/RuleReview/index.ts	1970-01-01 05:30:00
 +++ rule-engine/ui/components/RuleReview/index.ts	2026-07-21 18:48:46
 @@ -0,0 +1,18 @@
@@ -3264,10 +4884,10 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +  Outcome,
 +  Severity,
 +} from "./types";
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/components/RuleReview/styles.ts rule-engine/ui/components/RuleReview/styles.ts
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/ui/components/RuleReview/styles.ts rule-engine/ui/components/RuleReview/styles.ts
 --- components-empty-1/ui/components/RuleReview/styles.ts	1970-01-01 05:30:00
-+++ rule-engine/ui/components/RuleReview/styles.ts	2026-07-21 18:47:50
-@@ -0,0 +1,112 @@
++++ rule-engine/ui/components/RuleReview/styles.ts	2026-08-05 14:19:44
+@@ -0,0 +1,126 @@
 +// All styles for RuleReview, scoped under `.re-root` so they can't collide
 +// with the host app. Injected once as a plain <style> tag — no styled-jsx,
 +// no CSS-in-JS library, no build config required.
@@ -3303,7 +4923,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +.re-root .re-setid { font-size:13px; color:#6b7280; margin-top:2px; }
 +.re-root .re-meta { display:flex; gap:20px; font-size:13px; color:#6b7280; }
 +.re-root .re-meta code { background:#f3f4f6; padding:1px 6px; border-radius:6px; font-size:12px; }
-+.re-root .re-kpis { display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; }
++.re-root .re-kpis { display:grid; grid-template-columns:repeat(6, 1fr); gap:10px; }
 +.re-root .re-blockers { background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:12px 14px; }
 +.re-root .re-blockers-title { font-weight:700; color:#991b1b; font-size:13px; margin-bottom:8px; }
 +.re-root .re-blockers ul { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
@@ -3326,6 +4946,8 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +.re-root .re-table tbody tr { border-bottom:1px solid #f1f2f4; }
 +.re-root .re-table tbody tr:last-child { border-bottom:none; }
 +.re-root .re-table tbody tr.issue { background:#fffdf7; }
++.re-root .re-table tbody tr.skipped { background:#fcfcfd; }
++.re-root .re-table tbody tr.skipped .rdesc, .re-root .re-table tbody tr.skipped .rcheck { color:#9ca3af; }
 +.re-root .re-table td { padding:10px 12px; vertical-align:top; }
 +.re-root .re-empty { padding:18px; text-align:center; color:#9ca3af; }
 +.re-root .rid { font-weight:600; font-family:${MONO}; font-size:12px; }
@@ -3342,6 +4964,10 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +.re-root .pill.fail { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
 +.re-root .pill.warn { background:#fffbeb; color:#b45309; border-color:#fde68a; }
 +.re-root .pill.error { background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }
++.re-root .pill.skip { background:#f9fafb; color:#6b7280; border-color:#e5e7eb; }
++
++/* gate marker: a group's own gating condition */
++.re-root .gate { font-size:10px; font-weight:700; letter-spacing:0.04em; padding:1px 5px; margin-left:6px; border-radius:4px; color:#3730a3; background:#eef2ff; border:1px solid #c7d2fe; }
 +
 +/* severity tag */
 +.re-root .sev { font-size:11px; font-weight:700; letter-spacing:0.02em; padding:2px 8px; border-radius:6px; border:1px solid; }
@@ -3359,6 +4985,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +.re-root .kpi.fail .v { color:#b91c1c; }
 +.re-root .kpi.warn .v { color:#b45309; }
 +.re-root .kpi.error .v { color:#6d28d9; }
++.re-root .kpi.skip .v { color:#6b7280; }
 +
 +/* tree */
 +.re-root .re-tree { border:1px solid #eef0f3; border-radius:10px; padding:8px; }
@@ -3379,15 +5006,22 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +.re-root .tcheck { font-family:${MONO}; font-size:11px; color:#6b7280; }
 +.re-root .treason { color:#92400e; font-size:12px; }
 +.re-root .tchildren { border-left:1px dashed #e5e7eb; margin-left:16px; }
++
++/* gating condition line + gated-out nodes */
++.re-root .tnode.cond { border-radius:6px; background:#f8f9ff; }
++.re-root .tnode.cond .gate { margin-left:0; }
++.re-root .tnode.cond.shut { background:#fffbf5; }
++.re-root .tnode.skipped .tdesc, .re-root .tnode.skipped .tid, .re-root .tnode.skipped .tcheck { color:#9ca3af; }
++.re-root .tnode.group.skipped .logic { color:#9ca3af; background:#f9fafb; border-color:#eef0f3; }
 +`;
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/components/RuleReview/types.ts rule-engine/ui/components/RuleReview/types.ts
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/ui/components/RuleReview/types.ts rule-engine/ui/components/RuleReview/types.ts
 --- components-empty-1/ui/components/RuleReview/types.ts	1970-01-01 05:30:00
-+++ rule-engine/ui/components/RuleReview/types.ts	2026-07-21 18:47:11
-@@ -0,0 +1,68 @@
++++ rule-engine/ui/components/RuleReview/types.ts	2026-08-05 14:47:11
+@@ -0,0 +1,85 @@
 +// TypeScript mirror of the rule-engine /evaluate API response.
 +// This is the single input shape the RuleReview component consumes.
 +
-+export type Outcome = "PASS" | "FAIL" | "WARN" | "ERROR";
++export type Outcome = "PASS" | "FAIL" | "WARN" | "ERROR" | "SKIPPED";
 +export type Severity = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 +
 +export interface ExecutedRule {
@@ -3402,6 +5036,8 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +  passed: boolean;
 +  outcome: Outcome;
 +  reason: string | null;
++  /** True when this row is a group's gating condition, not a rule of its own. */
++  is_group_condition?: boolean;
 +}
 +
 +export interface Failure {
@@ -3416,8 +5052,15 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +  failed: number; // blocking failures
 +  warnings: number; // non-blocking failures
 +  errors: number;
++  skipped: number; // gated out by a group condition, never evaluated
 +}
 +
++/**
++ * A node in the rule tree. The condition fields (`operator`, `left`, `right`,
++ * `severity`) describe the node's own check: for a leaf that is the rule
++ * itself, for a group it is the gating condition deciding whether the children
++ * run, and they are null on an ungated group.
++ */
 +export interface RuleNode {
 +  rule_id: string;
 +  description: string;
@@ -3432,6 +5075,14 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +  right?: string | null;
 +  right_value?: unknown;
 +  reason?: string | null;
++  /** Never ran — a gating condition on it or on an ancestor was not met. */
++  skipped?: boolean;
++  /**
++   * For a gated group: whether its gating condition held. `false` means the
++   * children were skipped, which is otherwise indistinguishable from the
++   * children having failed. Null when the node has no gating condition.
++   */
++  condition_met?: boolean | null;
 +  children: RuleNode[];
 +}
 +
@@ -3452,7 +5103,16 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +  unknown_codes: string[];
 +  results: RuleSetResult[];
 +}
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/next.config.mjs rule-engine/ui/next.config.mjs
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/ui/next-env.d.ts rule-engine/ui/next-env.d.ts
+--- components-empty-1/ui/next-env.d.ts	1970-01-01 05:30:00
++++ rule-engine/ui/next-env.d.ts	2026-07-21 15:59:41
+@@ -0,0 +1,5 @@
++/// <reference types="next" />
++/// <reference types="next/image-types/global" />
++
++// NOTE: This file should not be edited
++// see https://nextjs.org/docs/basic-features/typescript for more information.
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/ui/next.config.mjs rule-engine/ui/next.config.mjs
 --- components-empty-1/ui/next.config.mjs	1970-01-01 05:30:00
 +++ rule-engine/ui/next.config.mjs	2026-07-21 15:58:00
 @@ -0,0 +1,4 @@
@@ -3460,7 +5120,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +const nextConfig = {};
 +
 +export default nextConfig;
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/package-lock.json rule-engine/ui/package-lock.json
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/ui/package-lock.json rule-engine/ui/package-lock.json
 --- components-empty-1/ui/package-lock.json	1970-01-01 05:30:00
 +++ rule-engine/ui/package-lock.json	2026-07-21 15:59:34
 @@ -0,0 +1,465 @@
@@ -3929,7 +5589,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    }
 +  }
 +}
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/package.json rule-engine/ui/package.json
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/ui/package.json rule-engine/ui/package.json
 --- components-empty-1/ui/package.json	1970-01-01 05:30:00
 +++ rule-engine/ui/package.json	2026-07-21 15:57:47
 @@ -0,0 +1,21 @@
@@ -3954,7 +5614,7 @@ diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x
 +    "@types/react-dom": "18.3.0"
 +  }
 +}
-diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x .mypy_cache -x *.egg-info -x .next -x out -x dist -x build -x htmlcov -x next-env.d.ts -x *.tsbuildinfo -x .env -x .env.* -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt components-empty-1/ui/tsconfig.json rule-engine/ui/tsconfig.json
+diff --color -ruN -x .venv -x node_modules -x .git -x payloads -x __pycache__ -x *.pyc -x .pytest_cache -x .ruff_cache -x *.egg-info -x .next -x dist -x build -x htmlcov -x generated -x *_pb2.py -x *_pb2_grpc.py -x .DS_Store -x *.log -x .plan -x .cursor -x .prompt -x *.patch -x *.tsbuildinfo -x * copy* components-empty-1/ui/tsconfig.json rule-engine/ui/tsconfig.json
 --- components-empty-1/ui/tsconfig.json	1970-01-01 05:30:00
 +++ rule-engine/ui/tsconfig.json	2026-07-21 15:57:55
 @@ -0,0 +1,20 @@
